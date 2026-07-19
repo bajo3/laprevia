@@ -3,7 +3,19 @@ import ProductCard from "./ProductCard";
 
 const rotations = [-2, 1.5, -1, 2, -1.5, 1];
 
-export default function ProductGrid({ products, categories }: { products: Product[]; categories: Category[] }) {
+type ProductGridProps = {
+  products: Product[];
+  categories: Category[];
+  quantities: Record<string, number>;
+  onAddToCart: (product: Product) => void;
+};
+
+export default function ProductGrid({
+  products,
+  categories,
+  quantities,
+  onAddToCart,
+}: ProductGridProps) {
   const byCategory = (slug: string) => categories.find((c) => c.slug === slug);
 
   return (
@@ -15,7 +27,14 @@ export default function ProductGrid({ products, categories }: { products: Produc
       ) : (
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
           {products.map((p, i) => (
-            <ProductCard key={p.id} product={p} category={byCategory(p.category)} rotate={rotations[i % rotations.length]} />
+            <ProductCard
+              key={p.id}
+              product={p}
+              category={byCategory(p.category)}
+              rotate={rotations[i % rotations.length]}
+              quantity={quantities[p.id] ?? 0}
+              onAddToCart={onAddToCart}
+            />
           ))}
         </div>
       )}

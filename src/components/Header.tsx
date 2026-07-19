@@ -1,6 +1,11 @@
 const WHATSAPP_URL = "https://wa.me/c/5492494009317";
 
-export default function Header() {
+type HeaderProps = {
+  cartCount: number;
+  onCartOpen: () => void;
+};
+
+export default function Header({ cartCount, onCartOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b-4 border-ink bg-cream/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
@@ -18,14 +23,29 @@ export default function Header() {
           <a href="#contacto" className="hover:text-pink">Contacto</a>
         </nav>
 
-        <a
-          href={WHATSAPP_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-full bg-teal px-4 py-2 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0_var(--color-ink)] sm:text-base"
-        >
-          WhatsApp
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-full bg-teal px-4 py-2 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0_var(--color-ink)] sm:block"
+          >
+            WhatsApp
+          </a>
+          <button
+            type="button"
+            onClick={onCartOpen}
+            className="relative rounded-full border-2 border-ink bg-yellow px-4 py-2 text-sm font-extrabold text-ink shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+            aria-label={`Abrir carrito con ${cartCount} unidades`}
+          >
+            🛒 <span className="hidden sm:inline">Carrito</span>
+            {cartCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-ink bg-pink px-1 text-xs text-white">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </header>
   );
