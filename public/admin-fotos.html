@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Panel de fotos — La Previa</title>
+<style>
+  :root {
+    --pink: #ff3d78; --teal: #00c2a8; --ink: #241834; --cream: #fff6e9; --yellow: #ffc93c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, sans-serif; background: var(--cream); color: var(--ink);
+    padding-bottom: 4rem;
+  }
+  header {
+    background: var(--ink); color: var(--cream); padding: 1.25rem 1.5rem;
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
+  header p { margin: 0; opacity: .7; font-size: .85rem; }
+  .warning {
+    background: var(--yellow); color: var(--ink); font-weight: 700; font-size: .8rem;
+    padding: .5rem 1.5rem; text-align: center;
+  }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: .75rem; align-items: center;
+    padding: 1rem 1.5rem; background: white; border-bottom: 3px solid var(--ink);
+  }
+  button {
+    font: inherit; font-weight: 800; border: 3px solid var(--ink); border-radius: 999px;
+    padding: .6rem 1.2rem; cursor: pointer; background: var(--teal); color: white;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  button:hover { transform: translateY(-1px); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  input[type=text] {
+    flex: 1; min-width: 200px; font: inherit; padding: .6rem 1rem; border-radius: 999px;
+    border: 3px solid var(--ink);
+  }
+  #status { padding: .5rem 1.5rem; font-size: .85rem; opacity: .75; }
+  #grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem; padding: 1.5rem;
+  }
+  .card {
+    background: white; border: 3px solid var(--ink); border-radius: 1.2rem; padding: 1rem;
+    box-shadow: 4px 4px 0 var(--ink); text-align: center; position: relative;
+  }
+  .card.done { outline: 3px solid var(--teal); }
+  .thumb {
+    height: 110px; border-radius: .8rem; background: #f2eee2; display: flex; align-items: center;
+    justify-content: center; font-size: 2.5rem; overflow: hidden; margin-bottom: .6rem;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .dropzone { outline: 3px dashed var(--pink); outline-offset: -3px; }
+  .name { font-weight: 800; font-size: .95rem; line-height: 1.2; margin-bottom: .15rem; }
+  .id { font-size: .7rem; opacity: .5; margin-bottom: .5rem; }
+  .cat { font-size: .7rem; font-weight: 700; opacity: .6; margin-bottom: .5rem; }
+  .card label {
+    display: inline-block; font-size: .8rem; font-weight: 700; padding: .4rem .9rem;
+    border-radius: 999px; border: 2px solid var(--ink); cursor: pointer; background: var(--cream);
+  }
+  .card input[type=file] { display: none; }
+  .badge-ok { position: absolute; top: -10px; right: -10px; background: var(--teal); color: white;
+    border: 2px solid var(--ink); border-radius: 999px; width: 28px; height: 28px; display: flex;
+    align-items: center; justify-content: center; font-size: .9rem; }
+  #empty { padding: 3rem; text-align: center; opacity: .6; }
+</style>
+</head>
+<body>
+
+<div class="warning">⚠️ Herramienta interna para cargar fotos — no compartir este link públicamente</div>
+
+<header>
+  <h1>📷 Panel de fotos — La Previa</h1>
+  <p>Arrastrá o elegí una foto para cada producto. Se guardan directo en la carpeta del sitio.</p>
+</header>
+
+<div class="toolbar">
+  <button id="pick-folder">📁 Elegir carpeta "public/productos"</button>
+  <input type="text" id="search" placeholder="Buscar producto por nombre..." disabled />
+</div>
+<div id="status">Primero elegí la carpeta <code>public/productos</code> dentro de la carpeta del proyecto.</div>
+
+<div id="grid"></div>
+<div id="empty" style="display:none">No hay productos para mostrar. Corré primero <code>npm run import:excel</code> para generar la lista.</div>
+
+<script>
+let dirHandle = null;
+let products = [];
+
+const grid = document.getElementById('grid');
+const statusEl = document.getElementById('status');
+const searchInput = document.getElementById('search');
+const pickBtn = document.getElementById('pick-folder');
+
+function setStatus(msg) { statusEl.textContent = msg; }
+
+async function loadProducts() {
+  try {
+    const res = await fetch('/productos-index.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('missing');
+    products = await res.json();
+  } catch {
+    products = [];
+  }
+  document.getElementById('empty').style.display = products.length ? 'none' : 'block';
+  render();
+}
+
+async function fileExists(name) {
+  if (!dirHandle) return false;
+  try {
+    await dirHandle.getFileHandle(name);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function findExistingPhoto(id) {
+  const exts = ['jpg', 'jpeg', 'png', 'webp'];
+  for (const ext of exts) {
+    if (await fileExists(`${id}.${ext}`)) return `${id}.${ext}`;
+  }
+  return null;
+}
+
+function extFromMime(type) {
+  if (type === 'image/png') return 'png';
+  if (type === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
+async function saveFile(id, file) {
+  const ext = extFromMime(file.type);
+  // Si ya existía con otra extensión, la dejamos (no rompe nada, simplemente queda una vieja sin usar).
+  const handle = await dirHandle.getFileHandle(`${id}.${ext}`, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(file);
+  await writable.close();
+  return `${id}.${ext}`;
+}
+
+function render() {
+  const query = searchInput.value.trim().toLowerCase();
+  const filtered = products.filter((p) => p.name.toLowerCase().includes(query));
+  grid.innerHTML = '';
+
+  filtered.forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = p.id;
+
+    card.innerHTML = `
+      <div class="thumb">🛒</div>
+      <div class="name">${p.name}</div>
+      <div class="id">ID ${p.id}</div>
+      <div class="cat">${p.category ?? ''}</div>
+      <label>Elegir foto
+        <input type="file" accept="image/*" />
+      </label>
+    `;
+
+    const thumb = card.querySelector('.thumb');
+    const input = card.querySelector('input[type=file]');
+
+    if (dirHandle) {
+      findExistingPhoto(p.id).then((filename) => {
+        if (filename) markDone(card, thumb, filename);
+      });
+    }
+
+    input.addEventListener('change', () => {
+      if (input.files[0]) handleFile(p.id, input.files[0], card, thumb);
+    });
+
+    card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('dropzone'); });
+    card.addEventListener('dragleave', () => card.classList.remove('dropzone'));
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('dropzone');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(p.id, file, card, thumb);
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+async function handleFile(id, file, card, thumb) {
+  if (!dirHandle) {
+    alert('Primero elegí la carpeta "public/productos" con el botón de arriba.');
+    return;
+  }
+  thumb.textContent = '⏳';
+  try {
+    const filename = await saveFile(id, file);
+    markDone(card, thumb, filename, file);
+    setStatus(`Guardado: ${filename}`);
+  } catch (err) {
+    thumb.textContent = '❌';
+    setStatus(`Error al guardar la foto: ${err.message}`);
+  }
+}
+
+function markDone(card, thumb, filename, file) {
+  card.classList.add('done');
+  if (!card.querySelector('.badge-ok')) {
+    const badge = document.createElement('div');
+    badge.className = 'badge-ok';
+    badge.textContent = '✓';
+    card.appendChild(badge);
+  }
+  const url = file ? URL.createObjectURL(file) : `/productos/${filename}`;
+  thumb.innerHTML = `<img src="${url}" alt="" />`;
+}
+
+pickBtn.addEventListener('click', async () => {
+  if (!window.showDirectoryPicker) {
+    alert('Tu navegador no soporta esta función. Usá Chrome o Edge en la compu.');
+    return;
+  }
+  try {
+    dirHandle = await window.showDirectoryPicker();
+    if (dirHandle.name !== 'productos') {
+      setStatus(`⚠️ Elegiste la carpeta "${dirHandle.name}". Asegurate de elegir "public/productos" dentro del proyecto.`);
+    } else {
+      setStatus(`Carpeta conectada: ${dirHandle.name} ✅ — ya podés subir fotos.`);
+    }
+    searchInput.disabled = false;
+    render();
+  } catch {
+    // usuario canceló el picker
+  }
+});
+
+searchInput.addEventListener('input', render);
+
+loadProducts();
+</script>
+</body>
+</html>

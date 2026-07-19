@@ -1,0 +1,512 @@
+[
+  {
+    "id": "3480057",
+    "name": "Antifaz brillante",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480029",
+    "name": "Banderines cumpleaños",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480001",
+    "name": "Bombas de agua x50",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480072",
+    "name": "Confeti x1kg",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480048",
+    "name": "Globos látex x25",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480027",
+    "name": "Globos metalizados x10",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480077",
+    "name": "Gorros de fiesta x10",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480078",
+    "name": "Guirnalda cumpleaños",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480002",
+    "name": "Guirnalda feliz año nuevo",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480080",
+    "name": "Manteles descartables",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480096",
+    "name": "Matracas x6",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480091",
+    "name": "Papel crepé x10",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480098",
+    "name": "Piñata grande",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480065",
+    "name": "Piñata mediana",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480087",
+    "name": "Platos descartables x25",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480015",
+    "name": "Serpentina x10",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480056",
+    "name": "Silbatos de cotillón x10",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480083",
+    "name": "Sombreros de fiesta x6",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480097",
+    "name": "Vasos descartables x25",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480014",
+    "name": "Vela decorativa aromática",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480059",
+    "name": "Velas de cumpleaños x12",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480006",
+    "name": "Velas número gigante",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480093",
+    "name": "Vinchas de fiesta x6",
+    "category": "cotillon"
+  },
+  {
+    "id": "3480011",
+    "name": "Bastoncitos de queso",
+    "category": "snacks"
+  },
+  {
+    "id": "3480035",
+    "name": "Chizitos",
+    "category": "snacks"
+  },
+  {
+    "id": "3480064",
+    "name": "Conitos de queso",
+    "category": "snacks"
+  },
+  {
+    "id": "3480049",
+    "name": "Maní salado x500g",
+    "category": "snacks"
+  },
+  {
+    "id": "3480047",
+    "name": "Nachos con queso",
+    "category": "snacks"
+  },
+  {
+    "id": "3480005",
+    "name": "Palitos salados",
+    "category": "snacks"
+  },
+  {
+    "id": "3480073",
+    "name": "Papas fritas clásicas",
+    "category": "snacks"
+  },
+  {
+    "id": "3480024",
+    "name": "Papas fritas con cheddar",
+    "category": "snacks"
+  },
+  {
+    "id": "3480058",
+    "name": "Papas rústicas",
+    "category": "snacks"
+  },
+  {
+    "id": "3480020",
+    "name": "Pochoclo dulce",
+    "category": "snacks"
+  },
+  {
+    "id": "3480023",
+    "name": "Pochoclo salado",
+    "category": "snacks"
+  },
+  {
+    "id": "3480051",
+    "name": "Rositas de maíz",
+    "category": "snacks"
+  },
+  {
+    "id": "3480000",
+    "name": "Snack coreano picante",
+    "category": "snacks"
+  },
+  {
+    "id": "3480025",
+    "name": "Alfajores triple x6",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480009",
+    "name": "Bombones surtidos",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480082",
+    "name": "Caramelos duros surtidos",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480042",
+    "name": "Caramelos importados ácidos",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480090",
+    "name": "Caramelos masticables",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480046",
+    "name": "Chicles de menta",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480044",
+    "name": "Chicles importados sabores",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480037",
+    "name": "Chocolate suizo",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480085",
+    "name": "Chocolates surtidos",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480052",
+    "name": "Chupetines surtidos x10",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480062",
+    "name": "Galletitas rellenas de chocolate",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480099",
+    "name": "Gomitas ácidas",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480081",
+    "name": "Gomitas de ositos",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480028",
+    "name": "Mentitas",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480021",
+    "name": "Obleas de chocolate",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480008",
+    "name": "Obleas rellenas",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480060",
+    "name": "Toffees",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480076",
+    "name": "Turrón de maní",
+    "category": "golosinas"
+  },
+  {
+    "id": "3480075",
+    "name": "Galletitas de agua",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480034",
+    "name": "Galletitas dulces surtidas",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480019",
+    "name": "Galletitas integrales",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480018",
+    "name": "Galletitas japonesas surtidas",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480039",
+    "name": "Galletitas saladas con salvado",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480063",
+    "name": "Vainillas",
+    "category": "galletitas"
+  },
+  {
+    "id": "3480038",
+    "name": "Helado 1L chocolate",
+    "category": "helados"
+  },
+  {
+    "id": "3480092",
+    "name": "Helado 1L dulce de leche",
+    "category": "helados"
+  },
+  {
+    "id": "3480045",
+    "name": "Helado 1L frutilla",
+    "category": "helados"
+  },
+  {
+    "id": "3480040",
+    "name": "Helado 1L vainilla",
+    "category": "helados"
+  },
+  {
+    "id": "3480041",
+    "name": "Helado balde 2L",
+    "category": "helados"
+  },
+  {
+    "id": "3480030",
+    "name": "Paletas de crema x6",
+    "category": "helados"
+  },
+  {
+    "id": "3480055",
+    "name": "Palitos de agua x8",
+    "category": "helados"
+  },
+  {
+    "id": "3480007",
+    "name": "Sorbete de limón 1L",
+    "category": "helados"
+  },
+  {
+    "id": "3480003",
+    "name": "Té helado importado",
+    "category": "helados"
+  },
+  {
+    "id": "3480068",
+    "name": "Energizante importado",
+    "category": "importados"
+  },
+  {
+    "id": "3480022",
+    "name": "Gaseosa importada sabor uva",
+    "category": "importados"
+  },
+  {
+    "id": "3480016",
+    "name": "Papas importadas onda ranch",
+    "category": "importados"
+  },
+  {
+    "id": "3480074",
+    "name": "Aceite de girasol 900ml",
+    "category": "almacen"
+  },
+  {
+    "id": "3480004",
+    "name": "Arroz largo fino 1kg",
+    "category": "almacen"
+  },
+  {
+    "id": "3480013",
+    "name": "Atún en lata",
+    "category": "almacen"
+  },
+  {
+    "id": "3480010",
+    "name": "Cerveza lata 473ml",
+    "category": "almacen"
+  },
+  {
+    "id": "3480070",
+    "name": "Detergente 750ml",
+    "category": "almacen"
+  },
+  {
+    "id": "3480071",
+    "name": "Fideos guiseros 500g",
+    "category": "almacen"
+  },
+  {
+    "id": "3480067",
+    "name": "Gaseosa 2.25L",
+    "category": "almacen"
+  },
+  {
+    "id": "3480043",
+    "name": "Harina 0000 1kg",
+    "category": "almacen"
+  },
+  {
+    "id": "3480061",
+    "name": "Jabón en polvo 800g",
+    "category": "almacen"
+  },
+  {
+    "id": "3480088",
+    "name": "Lavandina 1L",
+    "category": "almacen"
+  },
+  {
+    "id": "3475227",
+    "name": "LECHE",
+    "category": "almacen"
+  },
+  {
+    "id": "3480053",
+    "name": "Leche descremada 1L",
+    "category": "almacen"
+  },
+  {
+    "id": "3480079",
+    "name": "Leche entera 1L",
+    "category": "almacen"
+  },
+  {
+    "id": "3475831",
+    "name": "MERMELADA",
+    "category": "almacen"
+  },
+  {
+    "id": "3480066",
+    "name": "Mermelada de durazno",
+    "category": "almacen"
+  },
+  {
+    "id": "3480017",
+    "name": "Mermelada de frutilla",
+    "category": "almacen"
+  },
+  {
+    "id": "3480026",
+    "name": "Puré de tomate 520g",
+    "category": "almacen"
+  },
+  {
+    "id": "3480095",
+    "name": "Sal fina 500g",
+    "category": "almacen"
+  },
+  {
+    "id": "3480089",
+    "name": "Té en saquitos x25",
+    "category": "almacen"
+  },
+  {
+    "id": "3480032",
+    "name": "Vinagre de alcohol 500ml",
+    "category": "almacen"
+  },
+  {
+    "id": "3480069",
+    "name": "Agenda 2026",
+    "category": "regalos"
+  },
+  {
+    "id": "3480012",
+    "name": "Cuaderno decorado",
+    "category": "regalos"
+  },
+  {
+    "id": "3480094",
+    "name": "Lapicera con luz",
+    "category": "regalos"
+  },
+  {
+    "id": "3480031",
+    "name": "Llavero temático",
+    "category": "regalos"
+  },
+  {
+    "id": "3480036",
+    "name": "Peluche grande",
+    "category": "regalos"
+  },
+  {
+    "id": "3480033",
+    "name": "Peluche mediano",
+    "category": "regalos"
+  },
+  {
+    "id": "3480086",
+    "name": "Portarretrato",
+    "category": "regalos"
+  },
+  {
+    "id": "3480054",
+    "name": "Set de bijou",
+    "category": "regalos"
+  },
+  {
+    "id": "3480050",
+    "name": "Set de manualidades",
+    "category": "regalos"
+  },
+  {
+    "id": "3480084",
+    "name": "Taza sorpresa temática",
+    "category": "regalos"
+  }
+]

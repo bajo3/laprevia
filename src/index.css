@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Lilita+One&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Lilita One", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+
+  --color-cream: #fff6e9;
+  --color-cream-dark: #f7ead2;
+  --color-ink: #241834;
+  --color-navy: #1c1140;
+  --color-pink: #ff3d78;
+  --color-pink-dark: #e01f5c;
+  --color-teal: #00c2a8;
+  --color-teal-dark: #009a86;
+  --color-yellow: #ffc93c;
+  --color-orange: #ff8a3d;
+  --color-violet: #7c5cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Confetti dot texture */
+.confetti-bg {
+  background-image:
+    radial-gradient(currentColor 2px, transparent 2.5px),
+    radial-gradient(currentColor 2px, transparent 2.5px);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
+}
+
+.scallop-edge {
+  --scallop-size: 18px;
+  mask-image: radial-gradient(circle at var(--scallop-size) var(--scallop-size), transparent calc(var(--scallop-size) - 1px), black var(--scallop-size));
+  -webkit-mask-image: radial-gradient(circle at var(--scallop-size) var(--scallop-size), transparent calc(var(--scallop-size) - 1px), black var(--scallop-size));
+  mask-size: calc(var(--scallop-size) * 2) calc(var(--scallop-size) * 2);
+  -webkit-mask-size: calc(var(--scallop-size) * 2) calc(var(--scallop-size) * 2);
+  mask-repeat: repeat-x;
+  -webkit-mask-repeat: repeat-x;
+  mask-position: bottom;
+  -webkit-mask-position: bottom;
+}
+
+.text-outline {
+  -webkit-text-stroke: 1.5px var(--color-ink);
+  paint-order: stroke fill;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+  50% { transform: translateY(-14px) rotate(var(--rot, 0deg)); }
+}
+.animate-float {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 22s linear infinite;
+}
+
+::selection {
+  background: var(--color-pink);
+  color: white;
+}
