@@ -19,7 +19,6 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
         <nav className="hidden items-center gap-6 font-bold text-ink md:flex">
           <a href="#categorias" className="hover:text-pink">Categorías</a>
           <a href="#catalogo" className="hover:text-pink">Catálogo</a>
-          <a href="#nosotros" className="hover:text-pink">Nosotros</a>
           <a href="#contacto" className="hover:text-pink">Contacto</a>
         </nav>
 

@@ -8,7 +8,7 @@ const items = [
   {
     icon: "🕒",
     label: "Horario",
-    value: "Lunes a sábados de 9 a 13 hs",
+    value: "Lunes a sábados de 9 a 13 y de 15 a 19 hs",
   },
   {
     icon: "📱",
