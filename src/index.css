@@ -65,6 +65,16 @@ body {
   paint-order: stroke fill;
 }
 
+/* Hide the scrollbar on horizontal chip rails (swipeable filters on mobile) */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+
 @keyframes float-slow {
   0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
   50% { transform: translateY(-14px) rotate(var(--rot, 0deg)); }

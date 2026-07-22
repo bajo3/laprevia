@@ -8,29 +8,39 @@ type Props = {
 
 export default function CategoryNav({ categories, active, onSelect }: Props) {
   return (
-    <div id="categorias" className="mx-auto flex max-w-6xl flex-wrap justify-center gap-3 px-5 py-10">
-      <button
-        onClick={() => onSelect(null)}
-        className={`rounded-full border-[3px] border-ink px-5 py-2 font-display text-lg transition ${
-          active === null
-            ? "bg-ink text-cream"
-            : "bg-cream text-ink hover:-translate-y-0.5"
-        }`}
-      >
-        ✨ Todo
-      </button>
-      {categories.map((cat) => (
+    <nav
+      id="categorias"
+      aria-label="Categorías"
+      className="sticky top-16 z-40 border-y-[3px] border-ink bg-cream/95 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
+    >
+      <div className="hide-scrollbar mx-auto flex max-w-6xl snap-x gap-2.5 overflow-x-auto px-5 py-3 sm:flex-wrap sm:justify-center sm:overflow-visible sm:py-10">
         <button
-          key={cat.slug}
-          onClick={() => onSelect(cat.slug)}
-          style={active === cat.slug ? { backgroundColor: cat.color } : undefined}
-          className={`rounded-full border-[3px] border-ink px-5 py-2 font-display text-lg transition hover:-translate-y-0.5 ${
-            active === cat.slug ? "text-white" : "bg-white text-ink"
+          type="button"
+          onClick={() => onSelect(null)}
+          aria-pressed={active === null}
+          className={`shrink-0 snap-start rounded-full border-[3px] border-ink px-4 py-2 font-display text-base transition sm:px-5 sm:text-lg ${
+            active === null
+              ? "bg-ink text-cream"
+              : "bg-cream text-ink hover:-translate-y-0.5"
           }`}
         >
-          {cat.emoji} {cat.label}
+          ✨ Todo
         </button>
-      ))}
-    </div>
+        {categories.map((cat) => (
+          <button
+            key={cat.slug}
+            type="button"
+            onClick={() => onSelect(cat.slug)}
+            aria-pressed={active === cat.slug}
+            style={active === cat.slug ? { backgroundColor: cat.color } : undefined}
+            className={`shrink-0 snap-start rounded-full border-[3px] border-ink px-4 py-2 font-display text-base transition hover:-translate-y-0.5 sm:px-5 sm:text-lg ${
+              active === cat.slug ? "text-white" : "bg-white text-ink"
+            }`}
+          >
+            {cat.emoji} {cat.label}
+          </button>
+        ))}
+      </div>
+    </nav>
   );
 }

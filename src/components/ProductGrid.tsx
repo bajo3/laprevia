@@ -1,20 +1,29 @@
 import type { Product, Category } from "../data/products";
 import ProductCard from "./ProductCard";
 
-const rotations = [-2, 1.5, -1, 2, -1.5, 1];
+// Playful tilt applied only from the sm breakpoint up (literal class strings
+// so Tailwind's scanner emits them) — keeps the tight 2-col mobile grid clean.
+const tilts = [
+  "sm:rotate-[-2deg]",
+  "sm:rotate-[1.5deg]",
+  "sm:rotate-[-1deg]",
+  "sm:rotate-[2deg]",
+  "sm:rotate-[-1.5deg]",
+  "sm:rotate-[1deg]",
+];
 
 type ProductGridProps = {
   products: Product[];
   categories: Category[];
   quantities: Record<string, number>;
-  onAddToCart: (product: Product) => void;
+  onChangeQuantity: (product: Product, delta: number) => void;
 };
 
 export default function ProductGrid({
   products,
   categories,
   quantities,
-  onAddToCart,
+  onChangeQuantity,
 }: ProductGridProps) {
   const byCategory = (slug: string) => categories.find((c) => c.slug === slug);
 
@@ -25,15 +34,15 @@ export default function ProductGrid({
           Todavía no hay productos en esta categoría 👀
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">
           {products.map((p, i) => (
             <ProductCard
               key={p.id}
               product={p}
               category={byCategory(p.category)}
-              rotate={rotations[i % rotations.length]}
+              tiltClass={tilts[i % tilts.length]}
               quantity={quantities[p.id] ?? 0}
-              onAddToCart={onAddToCart}
+              onChangeQuantity={onChangeQuantity}
             />
           ))}
         </div>

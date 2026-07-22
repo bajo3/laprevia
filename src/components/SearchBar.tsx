@@ -6,7 +6,7 @@ type SearchBarProps = {
 
 export function SearchBar({ query, resultCount, onQueryChange }: SearchBarProps) {
   return (
-    <div className="mx-auto max-w-6xl px-5 pb-8">
+    <div className="mx-auto max-w-6xl px-5 pb-5 pt-2 sm:pb-8">
       <div className="relative mx-auto max-w-2xl">
         <label htmlFor="product-search" className="sr-only">
           Buscar productos
@@ -35,7 +35,7 @@ export function SearchBar({ query, resultCount, onQueryChange }: SearchBarProps)
           </button>
         )}
       </div>
-      <p className="mt-4 text-center text-sm font-bold text-ink/50" aria-live="polite">
+      <p className="mt-3 text-center text-sm font-bold text-ink/50" aria-live="polite">
         {resultCount} {resultCount === 1 ? "producto encontrado" : "productos encontrados"}
       </p>
     </div>

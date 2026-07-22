@@ -1,6 +1,6 @@
 export default function Hero() {
   return (
-    <section id="top" className="relative overflow-hidden bg-navy pb-24 pt-16 text-cream">
+    <section id="top" className="relative overflow-hidden bg-navy pb-20 pt-12 text-cream sm:pb-24 sm:pt-16">
       <div className="pointer-events-none absolute inset-0 text-cream/10 confetti-bg" />
 
       <span className="animate-float absolute left-[6%] top-16 text-5xl [--rot:-8deg] sm:text-6xl">🎈</span>

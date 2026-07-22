@@ -82,27 +82,23 @@ function App() {
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
   const clearCart = useCallback(() => setCart({}), []);
-  const addToCart = useCallback(
-    (product: Product) => changeQuantity(product, 1),
-    [changeQuantity],
-  );
 
   return (
     <>
       <Header cartCount={cartCount} onCartOpen={openCart} />
       <Hero />
 
-      <p className="mx-auto mt-10 max-w-2xl rounded-2xl border-2 border-dashed border-ink/30 px-5 py-3 text-center text-sm text-ink/60">
+      <p className="mx-auto mt-6 mb-2 max-w-2xl px-5 text-center text-sm text-ink/60 sm:mt-10 sm:rounded-2xl sm:border-2 sm:border-dashed sm:border-ink/30 sm:py-3">
         🧾 Armá tu pedido y envialo por WhatsApp. El total es estimado y se confirma al responderte.
       </p>
 
-      <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
       <SearchBar query={query} resultCount={filtered.length} onQueryChange={setQuery} />
+      <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
       <ProductGrid
         products={filtered}
         categories={categories}
         quantities={cart}
-        onAddToCart={addToCart}
+        onChangeQuantity={changeQuantity}
       />
       <InfoTicket />
       <Footer />
