@@ -43,41 +43,8 @@ function addDirectory(directory) {
 
 addDirectory(distDir);
 
+const workerTemplate = readFileSync(path.resolve("scripts/site-worker-template.mjs"), "utf8");
 writeFileSync(
   path.join(serverDir, "index.js"),
-  `const assets = ${JSON.stringify(embeddedAssets)};
-
-function decodeBase64(value) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-    const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
-    const asset =
-      assets[requestedPath] ??
-      (request.headers.get("accept")?.includes("text/html") ? assets["/index.html"] : undefined);
-
-    if (!asset) {
-      return new Response("Not found", { status: 404 });
-    }
-
-    return new Response(decodeBase64(asset.body), {
-      headers: {
-        "Content-Type": asset.type,
-        "Cache-Control": requestedPath.startsWith("/assets/")
-          ? "public, max-age=31536000, immutable"
-          : "no-cache",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  },
-};
-`,
+  workerTemplate.replace("__EMBEDDED_ASSETS__", JSON.stringify(embeddedAssets)),
 );

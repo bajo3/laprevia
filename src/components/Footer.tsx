@@ -5,7 +5,7 @@ export default function Footer() {
       <p className="relative font-display text-2xl text-cream">La Previa</p>
       <p className="relative mt-1 text-sm">Distribuidora de cotillón, snacks e importados · Tandil</p>
       <p className="relative mt-4 text-xs text-cream/40">
-        © {new Date().getFullYear()} Distribuidora La Previa. Catálogo web no oficial de la marca.
+        © {new Date().getFullYear()} Distribuidora La Previa. Catálogo online de la distribuidora.
       </p>
     </footer>
   );

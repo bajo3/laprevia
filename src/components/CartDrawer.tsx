@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../data/products";
 
 const WHATSAPP_NUMBER = "5492494009317";
@@ -43,6 +43,17 @@ function buildWhatsAppMessage(lines: CartLine[], total: number, unitCount: numbe
     "",
     "¿Me confirman disponibilidad y forma de pago? ¡Gracias!",
   ].join("\n");
+}
+
+function CartProductThumb({ product }: { product: Product }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [product.image]);
+
+  return product.image && !imageFailed ? (
+    <img src={product.image} alt="" className="h-full w-full object-cover" onError={() => setImageFailed(true)} />
+  ) : (
+    <span aria-hidden="true">{product.emoji}</span>
+  );
 }
 
 export function CartDrawer({
@@ -142,11 +153,8 @@ export function CartDrawer({
                   className="rounded-2xl border-2 border-ink/15 bg-white p-4"
                 >
                   <div className="flex gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cream-dark text-2xl"
-                    >
-                      {product.emoji}
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-cream-dark text-2xl">
+                      <CartProductThumb product={product} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-display text-lg text-ink">{product.name}</h3>

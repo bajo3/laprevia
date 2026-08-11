@@ -9,43 +9,29 @@ npm install
 npm run dev
 ```
 
-## Actualizar precios (cada vez que exportás de Codelector)
+## Actualizar el catálogo
 
-1. Exportá el Excel desde Codelector como siempre.
-2. Corré:
+El Excel de Codelector es la fuente de precios y stock. Desde el dashboard `/admin` se puede:
 
-   ```bash
-   npm run import:excel -- "ruta/al/archivo.xlsx"
-   ```
+1. Subir el `.xlsx` actualizado.
+2. Revisar cuántas filas son válidas y cuántas se omiten.
+3. Confirmar la importación usando `ID` como clave.
 
-3. Listo — regenera `src/data/products.ts` con los precios y el stock actualizados.
+La actualización agrega productos nuevos, actualiza nombre/código/precio/stock y desactiva los productos importados que ya no aparecen. Los productos agregados manualmente quedan activos hasta elegir "Sacar". Las fotos quedan asociadas al mismo `ID`, por lo que no se pierden.
 
-Esto funciona con las columnas que ya trae Codelector: **ID, NOMBRE, PRECIO, STOCK** (COSTO se ignora a propósito, nunca se muestra en el catálogo público).
-
-**Las categorías y las fotos no se pierden entre reimportaciones**, porque quedan asociadas al `ID` del producto (que Codelector mantiene fijo):
-
-- La primera vez que aparece un producto nuevo, el script le adivina una categoría por palabras clave (por ejemplo "helado" → Helados) y te avisa en la consola para que la revises. Si adivinó mal, corregila a mano en `src/data/category-map.json` (es un archivo simple `"id": "categoria"`) y no se va a volver a tocar.
-- Categorías disponibles: `cotillon`, `snacks`, `golosinas`, `galletitas`, `helados`, `importados`, `almacen`, `regalos`.
-
-Para probar sin escribir nada todavía, agregá `--dry-run`:
+También existe el flujo local para regenerar el catálogo estático:
 
 ```bash
-npm run import:excel -- "ruta/al/archivo.xlsx" --dry-run
+npm run import:excel -- "ruta/al/archivo.xlsx"
 ```
 
-## Subir fotos de los productos
+## Fotos y persistencia
 
-Con el sitio corriendo (`npm run dev`), abrí en Chrome o Edge:
+Desde cada tarjeta del dashboard se puede subir o cambiar una foto. En producción, las imágenes se guardan en R2 y los datos de producto en D1. El catálogo público solo muestra precio, stock, nombre, código, categoría y foto; `COSTO` queda interno.
 
-**http://localhost:5173/admin-fotos.html**
+Las operaciones de escritura del dashboard requieren la variable de entorno `ADMIN_TOKEN`. El catálogo público no la necesita.
 
-1. Tocá "Elegir carpeta public/productos" y seleccioná esa carpeta dentro del proyecto (una sola vez).
-2. Para cada producto, arrastrá una foto encima de la tarjeta (o tocá "Elegir foto" desde el celu/compu).
-3. Se guarda al toque con el nombre correcto — no hay que hacer nada más, la próxima vez que abras el sitio ya aparece la foto.
-
-Los productos sin foto muestran un emoji de la categoría como reemplazo, así que no hay apuro: se puede ir cargando de a poco.
-
-> Esta página es una herramienta interna (no la compartas) — funciona solo en Chrome/Edge de escritorio porque usa una función del navegador para guardar archivos directo en la carpeta del proyecto.
+Los productos sin foto muestran un placeholder de categoría y se pueden completar de a poco.
 
 ## Build para producción
 
@@ -54,3 +40,5 @@ npm run build
 ```
 
 Genera la carpeta `dist/` lista para subir a cualquier hosting (Vercel, Netlify, etc.). Al desplegar, subí también la carpeta `public/productos` con las fotos.
+
+El catálogo completo se publica en `catalogo-data.json` como datos separados del JavaScript inicial para que la primera carga sea más liviana, especialmente en celulares.

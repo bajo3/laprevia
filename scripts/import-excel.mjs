@@ -10,10 +10,9 @@
 //   src/data/category-map.json (por ID de producto) y se reutiliza en cada reimportación.
 //   Los productos nuevos se auto-categorizan por palabras clave y quedan marcados
 //   para que los revises; los que ya categorizaste antes no se vuelven a tocar.
-// - Las fotos se buscan en public/productos/<ID>.(jpg|jpeg|png|webp). Ver admin-fotos.html
-//   para subirlas arrastrando y soltando.
+// - Las fotos se gestionan desde el dashboard /admin y se guardan por ID.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import XLSX from "xlsx";
@@ -23,6 +22,7 @@ const CATEGORY_MAP_PATH = path.join(ROOT, "src", "data", "category-map.json");
 const PRODUCTS_OUT_PATH = path.join(ROOT, "src", "data", "products.ts");
 const PHOTOS_DIR = path.join(ROOT, "public", "productos");
 const PRODUCTS_INDEX_PATH = path.join(ROOT, "public", "productos-index.json");
+const PRODUCTS_DATA_PATH = path.join(ROOT, "public", "catalogo-data.json");
 const PHOTO_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 export const categories = [
@@ -69,6 +69,34 @@ if (!existsSync(filePath)) {
 const normalize = (s) =>
   String(s ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
+const parseNumber = (value) => {
+  if (typeof value === "number") return value;
+  const raw = String(value ?? "").trim();
+  if (!raw) return Number.NaN;
+
+  const cleaned = raw.replace(/[^\d,.-]/g, "");
+  const commaIndex = cleaned.lastIndexOf(",");
+  const dotIndex = cleaned.lastIndexOf(".");
+
+  if (commaIndex >= 0 && dotIndex >= 0) {
+    const decimalSeparator = commaIndex > dotIndex ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    return Number(cleaned.replaceAll(thousandsSeparator, "").replace(decimalSeparator, "."));
+  }
+
+  if (commaIndex >= 0) {
+    const decimalDigits = cleaned.length - commaIndex - 1;
+    return Number(decimalDigits <= 2 ? cleaned.replace(",", ".") : cleaned.replaceAll(",", ""));
+  }
+
+  if (dotIndex >= 0) {
+    const decimalDigits = cleaned.length - dotIndex - 1;
+    return Number(decimalDigits <= 2 ? cleaned : cleaned.replaceAll(".", ""));
+  }
+
+  return Number(cleaned);
+};
+
 const findKey = (row, candidates) => {
   const keys = Object.keys(row);
   return keys.find((k) => candidates.includes(normalize(k))) ?? null;
@@ -108,6 +136,7 @@ const idKey = findKey(rows[0], ["id"]);
 const nameKey = findKey(rows[0], ["nombre", "producto"]);
 const priceKey = findKey(rows[0], ["precio"]);
 const stockKey = findKey(rows[0], ["stock"]);
+const codeKey = findKey(rows[0], ["codigo", "código"]);
 
 if (!idKey || !nameKey || !priceKey) {
   console.error(`No se reconocen las columnas de la planilla. Se esperaba ID, NOMBRE y PRECIO. Columnas encontradas: ${Object.keys(rows[0]).join(", ")}`);
@@ -122,8 +151,10 @@ const missingPhotos = [];
 for (const row of rows) {
   const id = String(row[idKey]).trim();
   const name = String(row[nameKey]).trim();
-  const price = Number(String(row[priceKey]).replace(/[^\d.,-]/g, "").replace(",", "."));
-  const stock = stockKey ? Number(row[stockKey]) : undefined;
+  const price = parseNumber(row[priceKey]);
+  const stock = stockKey ? parseNumber(row[stockKey]) : undefined;
+  const rawCode = codeKey ? String(row[codeKey]).trim() : "";
+  const code = rawCode && rawCode.toLowerCase() !== "nan" ? rawCode : "";
 
   if (!id || !name || !Number.isFinite(price)) {
     skipped.push({ id, name, price });
@@ -143,6 +174,7 @@ for (const row of rows) {
   products.push({
     id,
     name,
+    ...(code ? { code } : {}),
     category,
     price: Math.round(price),
     unit: "un",
@@ -170,6 +202,7 @@ const out = `export type Category = {
 export type Product = {
   id: string;
   name: string;
+  code?: string;
   category: string;
   price: number;
   unit: string;
@@ -192,6 +225,7 @@ if (!dryRun) {
     PRODUCTS_INDEX_PATH,
     JSON.stringify(products.map((p) => ({ id: p.id, name: p.name, category: p.category })), null, 2)
   );
+  writeFileSync(PRODUCTS_DATA_PATH, JSON.stringify(products, null, 2));
 }
 
 console.log(`\n${dryRun ? "🔎 (dry-run, no se escribió nada)" : "✅"} ${products.length} productos procesados de "${path.basename(filePath)}"`);
@@ -203,11 +237,12 @@ if (skipped.length) {
 
 if (newlyGuessed.length) {
   console.log(`\n🏷️  ${newlyGuessed.length} producto(s) nuevo(s) categorizado(s) automáticamente (revisar si corresponde, corregir en src/data/category-map.json):`);
-  newlyGuessed.forEach((g) => console.log(`   ID=${g.id} "${g.name}" → ${g.category}`));
+  newlyGuessed.slice(0, 20).forEach((g) => console.log(`   ID=${g.id} "${g.name}" → ${g.category}`));
+  if (newlyGuessed.length > 20) console.log(`   ...y ${newlyGuessed.length - 20} más.`);
 }
 
 if (missingPhotos.length) {
-  console.log(`\n📷 ${missingPhotos.length} producto(s) sin foto todavía (mostrarán un emoji). Usá admin-fotos.html para subirlas, guardándolas como:`);
+  console.log(`\n📷 ${missingPhotos.length} producto(s) sin foto todavía (mostrarán un emoji). Usá el dashboard /admin para subirlas:`);
   missingPhotos.slice(0, 20).forEach((m) => console.log(`   public/productos/${m.id}.jpg   ← "${m.name}"`));
   if (missingPhotos.length > 20) console.log(`   ...y ${missingPhotos.length - 20} más.`);
 }

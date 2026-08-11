@@ -3,7 +3,6 @@
 // Uso: node scripts/gen-fake-excel.mjs
 
 import XLSX from "xlsx";
-import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,8 +65,6 @@ const bank = {
 };
 
 const existingRows = [];
-const seedPath = path.join(ROOT, "excel-demo", "..", "src", "data", "category-map.json");
-
 // Base real: reusa los 2 productos ya cargados (LECHE, MERMELADA) tal como los tenemos.
 existingRows.push({ ID: 3475227, NOMBRE: "LECHE", "CÓDIGO": 1, COSTO: 800, PRECIO: 1300, STOCK: 10, VER: "Ver" });
 existingRows.push({ ID: 3475831, NOMBRE: "MERMELADA", "CÓDIGO": 2, COSTO: 500, PRECIO: 900, STOCK: 25, VER: "Ver" });

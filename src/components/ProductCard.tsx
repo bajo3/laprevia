@@ -1,5 +1,5 @@
+import { useEffect, useState } from "react";
 import type { Product, Category } from "../data/products";
-import { getProductReferenceImage } from "../data/product-reference-images";
 
 const badgeStyles: Record<string, string> = {
   Importado: "bg-yellow text-ink",
@@ -28,8 +28,10 @@ export default function ProductCard({
   quantity,
   onChangeQuantity,
 }: ProductCardProps) {
-  const isReferenceImage = !product.image;
-  const imageSrc = product.image ?? getProductReferenceImage(product);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [product.image]);
+
+  const imageSrc = product.image && !imageFailed ? product.image : undefined;
   const isOutOfStock = product.stock !== undefined && product.stock <= 0;
   const reachedStockLimit = product.stock !== undefined && quantity >= product.stock;
 
@@ -53,20 +55,19 @@ export default function ProductCard({
         className="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-2xl text-5xl sm:h-32"
         style={{ backgroundColor: `color-mix(in srgb, ${category?.color ?? "var(--color-pink)"} 18%, white)` }}
       >
-        <span aria-hidden="true">{product.emoji}</span>
-        <img
-          src={imageSrc}
-          alt={`${isReferenceImage ? "Foto de referencia de " : ""}${product.name}`}
-          className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
-        {isReferenceImage && (
+        {!imageSrc && <span aria-hidden="true">{product.emoji}</span>}
+        {imageSrc && (
+          <img
+            src={imageSrc}
+            alt={product.name}
+            className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
+        )}
+        {!imageSrc && (
           <span className="absolute bottom-2 left-2 rounded-full border border-white/70 bg-ink/70 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">
-            Foto ilustrativa
+            Sin foto
           </span>
         )}
       </div>
@@ -82,6 +83,14 @@ export default function ProductCard({
         <span className="font-display text-2xl text-pink">{currency.format(product.price)}</span>
         <span className="text-sm font-semibold text-ink/50">/ {product.unit}</span>
       </div>
+
+      <p className={`mt-1 text-xs font-extrabold ${isOutOfStock ? "text-pink" : "text-teal-dark"}`}>
+        {isOutOfStock
+          ? "Sin stock"
+          : product.stock === undefined
+            ? "Consultar stock"
+            : `${product.stock} ${product.stock === 1 ? "disponible" : "disponibles"}`}
+      </p>
 
       <div className="mt-3">
         {quantity > 0 ? (

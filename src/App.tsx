@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import CategoryNav from "./components/CategoryNav";
@@ -7,7 +7,11 @@ import { SearchBar } from "./components/SearchBar";
 import { CartDrawer } from "./components/CartDrawer";
 import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
-import { categories, products, type Product } from "./data/products";
+import { categories } from "./data/catalog-config";
+import { fetchBundledCatalog, fetchCatalogProducts } from "./data/catalog-api";
+import type { Product } from "./data/products";
+
+const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
 
 const currency = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -21,32 +25,62 @@ const normalizeSearch = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-function App() {
+function PublicCatalog() {
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(48);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCatalog() {
+      try {
+        const remoteProducts = await fetchCatalogProducts();
+        const products = remoteProducts.length > 0 ? remoteProducts : await fetchBundledCatalog();
+        if (!cancelled) setCatalogProducts(products);
+      } catch {
+        try {
+          const products = await fetchBundledCatalog();
+          if (!cancelled) setCatalogProducts(products);
+        } catch {
+          if (!cancelled) setCatalogProducts([]);
+        }
+      } finally {
+        if (!cancelled) setIsCatalogLoading(false);
+      }
+    }
+    void loadCatalog();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = useMemo(() => {
     const normalizedQuery = normalizeSearch(query.trim());
 
-    return products.filter((product) => {
+    return catalogProducts.filter((product) => {
       const matchesCategory = !activeCategory || product.category === activeCategory;
       const matchesSearch =
         !normalizedQuery ||
         normalizeSearch(product.name).includes(normalizedQuery) ||
-        product.id.includes(normalizedQuery);
+        product.id.includes(normalizedQuery) ||
+        normalizeSearch(product.code ?? "").includes(normalizedQuery);
 
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, query]);
+  }, [activeCategory, catalogProducts, query]);
+
+  useEffect(() => setVisibleCount(48), [activeCategory, query]);
+
+  const visibleProducts = filtered.slice(0, visibleCount);
 
   const cartLines = useMemo(
     () =>
-      products
+      catalogProducts
         .filter((product) => (cart[product.id] ?? 0) > 0)
         .map((product) => ({ product, quantity: cart[product.id] })),
-    [cart],
+    [cart, catalogProducts],
   );
 
   const cartCount = useMemo(
@@ -94,12 +128,22 @@ function App() {
 
       <SearchBar query={query} resultCount={filtered.length} onQueryChange={setQuery} />
       <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
-      <ProductGrid
-        products={filtered}
-        categories={categories}
-        quantities={cart}
-        onChangeQuantity={changeQuantity}
-      />
+      {isCatalogLoading ? (
+        <div className="mx-auto max-w-2xl px-5 py-16 text-center" role="status">
+          <p className="font-display text-3xl">Cargando catálogo…</p>
+          <p className="mt-2 text-sm font-semibold text-ink/50">Estamos preparando los productos para vos.</p>
+        </div>
+      ) : (
+        <ProductGrid
+          products={visibleProducts}
+          categories={categories}
+          quantities={cart}
+          onChangeQuantity={changeQuantity}
+          hasMore={visibleCount < filtered.length}
+          totalCount={filtered.length}
+          onLoadMore={() => setVisibleCount((current) => current + 48)}
+        />
+      )}
       <InfoTicket />
       <Footer />
 
@@ -124,6 +168,14 @@ function App() {
       />
     </>
   );
+}
+
+function App() {
+  return window.location.pathname.startsWith("/admin") ? (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-cream p-6 text-center"><p className="font-display text-3xl">Cargando panel…</p></div>}>
+      <AdminDashboard />
+    </Suspense>
+  ) : <PublicCatalog />;
 }
 
 export default App;

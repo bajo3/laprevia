@@ -17,6 +17,9 @@ type ProductGridProps = {
   categories: Category[];
   quantities: Record<string, number>;
   onChangeQuantity: (product: Product, delta: number) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  totalCount?: number;
 };
 
 export default function ProductGrid({
@@ -24,6 +27,9 @@ export default function ProductGrid({
   categories,
   quantities,
   onChangeQuantity,
+  hasMore = false,
+  onLoadMore,
+  totalCount,
 }: ProductGridProps) {
   const byCategory = (slug: string) => categories.find((c) => c.slug === slug);
 
@@ -45,6 +51,14 @@ export default function ProductGrid({
               onChangeQuantity={onChangeQuantity}
             />
           ))}
+        </div>
+      )}
+      {hasMore && onLoadMore && (
+        <div className="mt-10 text-center">
+          <p className="mb-3 text-sm font-bold text-ink/45">Mostrando {products.length.toLocaleString("es-AR")} de {(totalCount ?? products.length).toLocaleString("es-AR")}</p>
+          <button type="button" onClick={onLoadMore} className="rounded-full border-[3px] border-ink bg-yellow px-6 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5">
+            Mostrar más productos
+          </button>
         </div>
       )}
     </section>
