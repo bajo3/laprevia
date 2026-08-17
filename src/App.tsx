@@ -100,8 +100,10 @@ function PublicCatalog() {
   const changeQuantity = useCallback((product: Product, delta: number) => {
     setCart((current) => {
       const currentQuantity = current[product.id] ?? 0;
-      const maximum = product.stock ?? Number.POSITIVE_INFINITY;
-      const nextQuantity = Math.max(0, Math.min(maximum, currentQuantity + delta));
+      // No stock ceiling: the catalog does not publish stock, so silently
+      // refusing to increment would be unexplainable to the shopper. The shop
+      // confirms availability when the WhatsApp order arrives.
+      const nextQuantity = Math.max(0, currentQuantity + delta);
 
       if (nextQuantity === 0) {
         const nextCart = { ...current };
@@ -145,17 +147,17 @@ function PublicCatalog() {
         />
       )}
       <InfoTicket />
-      <Footer />
+      <Footer hasFloatingBar={cartCount > 0} />
 
       {cartCount > 0 && (
         <button
           type="button"
           onClick={openCart}
-          className="fixed bottom-5 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center justify-between rounded-full border-[3px] border-ink bg-yellow px-5 py-3 text-ink shadow-[5px_5px_0_var(--color-ink)] transition hover:-translate-y-1 hover:shadow-[7px_7px_0_var(--color-ink)] sm:left-auto sm:right-6 sm:w-auto sm:translate-x-0"
+          className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-full border-[3px] border-ink bg-yellow px-5 py-3 text-ink shadow-[5px_5px_0_var(--color-ink)] transition hover:-translate-y-1 hover:shadow-[7px_7px_0_var(--color-ink)] sm:left-auto sm:right-6 sm:w-auto sm:translate-x-0"
           aria-label={`Abrir carrito con ${cartCount} unidades`}
         >
-          <span className="font-extrabold">🛒 Ver carrito · {cartCount}</span>
-          <span className="ml-5 font-display text-xl">{currency.format(cartTotal)}</span>
+          <span className="truncate font-extrabold">🛒 Ver carrito · {cartCount}</span>
+          <span className="shrink-0 font-display text-xl">{currency.format(cartTotal)}</span>
         </button>
       )}
 

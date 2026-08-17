@@ -27,9 +27,19 @@ npm run import:excel -- "ruta/al/archivo.xlsx"
 
 ## Fotos y persistencia
 
-Desde cada tarjeta del dashboard se puede subir o cambiar una foto. En producción, las imágenes se guardan en R2 y los datos de producto en D1. El catálogo público solo muestra precio, stock, nombre, código, categoría y foto; `COSTO` queda interno.
+Desde cada tarjeta del dashboard se puede subir o cambiar una foto. En producción, las imágenes se guardan en Supabase Storage (bucket `product-images`) y los datos de producto en Supabase (Postgres), a través de funciones serverless en `api/`. El catálogo público solo muestra precio, stock, nombre, código, categoría y foto; `COSTO` queda interno.
 
 Las operaciones de escritura del dashboard requieren la variable de entorno `ADMIN_TOKEN`. El catálogo público no la necesita.
+
+### Backend (Vercel + Supabase)
+
+El sitio se despliega en Vercel. Las rutas `/api/products*` son funciones serverless (edge) en `api/` que hablan con Supabase usando el `service_role key` — ese key nunca se expone al navegador. Variables de entorno necesarias en Vercel (Project Settings → Environment Variables):
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_TOKEN`
+
+Ninguna variable lleva el prefijo `VITE_`: el frontend nunca habla directo con Supabase, todo pasa por `api/`.
 
 Los productos sin foto muestran un placeholder de categoría y se pueden completar de a poco.
 

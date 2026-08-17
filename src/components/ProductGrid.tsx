@@ -40,7 +40,9 @@ export default function ProductGrid({
           Todavía no hay productos en esta categoría 👀
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">
+        // 3 columns only from md: at the sm breakpoint a 3-up grid leaves ~144px
+        // per card, which cuts almost every catalog name.
+        <div className="grid grid-cols-2 gap-3.5 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
           {products.map((p, i) => (
             <ProductCard
               key={p.id}

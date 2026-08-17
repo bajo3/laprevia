@@ -22,8 +22,12 @@ export function SearchBar({ query, resultCount, onQueryChange }: SearchBarProps)
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Buscar globos, snacks, chocolates..."
-          className="w-full rounded-full border-[3px] border-ink bg-white py-4 pl-14 pr-28 font-semibold text-ink shadow-[4px_4px_0_var(--color-ink)] outline-none transition placeholder:text-ink/35 focus:-translate-y-0.5 focus:ring-4 focus:ring-pink/25"
+          placeholder="Buscar globos, snacks..."
+          // Only reserve room for the "Limpiar" button while it is actually
+          // rendered — otherwise the placeholder gets truncated on phones.
+          className={`w-full rounded-full border-[3px] border-ink bg-white py-4 pl-14 font-semibold text-ink shadow-[4px_4px_0_var(--color-ink)] outline-none transition placeholder:text-ink/35 focus:-translate-y-0.5 focus:ring-4 focus:ring-pink/25 ${
+            query ? "pr-28" : "pr-5"
+          }`}
         />
         {query && (
           <button

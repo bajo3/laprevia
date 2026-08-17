@@ -13,7 +13,9 @@ export default function CategoryNav({ categories, active, onSelect }: Props) {
       aria-label="Categorías"
       className="sticky top-16 z-40 border-y-[3px] border-ink bg-cream/95 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
     >
-      <div className="hide-scrollbar mx-auto flex max-w-6xl snap-x gap-2.5 overflow-x-auto px-5 py-3 sm:flex-wrap sm:justify-center sm:overflow-visible sm:py-10">
+      {/* scroll-pl-5 keeps snap alignment inside the padding box — without it the
+          rail settles at scrollLeft 20 and clips the first chip's left border. */}
+      <div className="hide-scrollbar mx-auto flex max-w-6xl snap-x scroll-pl-5 gap-2.5 overflow-x-auto px-5 py-3 sm:flex-wrap sm:justify-center sm:overflow-visible sm:py-10">
         <button
           type="button"
           onClick={() => onSelect(null)}

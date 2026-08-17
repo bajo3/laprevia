@@ -8,7 +8,9 @@ type HeaderProps = {
 export default function Header({ cartCount, onCartOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b-4 border-ink bg-cream/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+      {/* Fixed 60px + 4px border = 64px on mobile, so CategoryNav's sticky
+          `top-16` docks flush against it with no gap. */}
+      <div className="mx-auto flex h-[60px] max-w-6xl items-center justify-between px-5 sm:h-auto sm:py-3">
         <a href="#top" className="flex items-center gap-2">
           <span className="font-display text-2xl text-pink sm:text-3xl">La Previa</span>
           <span className="hidden rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-cream sm:inline">
@@ -34,10 +36,11 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
           <button
             type="button"
             onClick={onCartOpen}
-            className="relative rounded-full border-2 border-ink bg-yellow px-4 py-2 text-sm font-extrabold text-ink shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+            className="relative flex h-11 items-center justify-center gap-1.5 rounded-full border-2 border-ink bg-yellow px-4 text-sm font-extrabold text-ink shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
             aria-label={`Abrir carrito con ${cartCount} unidades`}
           >
-            🛒 <span className="hidden sm:inline">Carrito</span>
+            <span aria-hidden="true">🛒</span>
+            <span className="hidden sm:inline">Carrito</span>
             {cartCount > 0 && (
               <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-ink bg-pink px-1 text-xs text-white">
                 {cartCount}

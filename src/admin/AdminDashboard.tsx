@@ -419,21 +419,25 @@ export default function AdminDashboard() {
             <h1 className="font-display mt-1 text-3xl sm:text-4xl">Panel de productos</h1>
             <p className="mt-1 max-w-xl text-sm text-cream/65">Actualizá el catálogo con el Excel y completá una foto por producto.</p>
           </div>
-          <a href="/" className="rounded-full border-2 border-cream/40 px-4 py-2 text-sm font-extrabold transition hover:border-yellow hover:text-yellow">Ver catálogo</a>
+          <a href="/" className="shrink-0 whitespace-nowrap rounded-full border-2 border-cream/40 px-4 py-2 text-sm font-extrabold transition hover:border-yellow hover:text-yellow">Ver catálogo</a>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-5 py-6 sm:px-8 sm:py-9">
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 2-up on phones: stacked 1-up pushed ~580px of stats above the actual work. */}
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             ["Productos activos", catalog.length.toLocaleString("es-AR"), "📦", "bg-yellow"],
             ["Con foto", withPhoto.toLocaleString("es-AR"), "📸", "bg-teal text-white"],
             ["Pendientes", withoutPhoto.toLocaleString("es-AR"), "🖼️", "bg-pink text-white"],
             ["Categorías", categories.length.toString(), "🏷️", "bg-violet text-white"],
           ].map(([label, value, emoji, color]) => (
-            <article key={label} className={`rounded-3xl border-[3px] border-ink p-5 shadow-[4px_4px_0_var(--color-ink)] ${color}`}>
-              <div className="flex items-center justify-between"><span className="text-sm font-extrabold uppercase tracking-wider opacity-70">{label}</span><span className="text-2xl">{emoji}</span></div>
-              <p className="font-display mt-2 text-4xl">{value}</p>
+            <article key={label} className={`rounded-3xl border-[3px] border-ink p-4 shadow-[4px_4px_0_var(--color-ink)] sm:p-5 ${color}`}>
+              <div className="flex items-start justify-between gap-1">
+                <span className="text-[11px] font-extrabold uppercase leading-tight tracking-wider opacity-70 sm:text-sm">{label}</span>
+                <span className="shrink-0 text-xl sm:text-2xl">{emoji}</span>
+              </div>
+              <p className="font-display mt-2 text-3xl sm:text-4xl">{value}</p>
             </article>
           ))}
         </section>
@@ -504,9 +508,11 @@ export default function AdminDashboard() {
                     {productHasPhoto(product, localPhotoUrls) && <span className="absolute right-2 top-2 rounded-full border-2 border-ink bg-teal px-2 py-1 text-xs font-black text-white">✓</span>}
                   </div>
                   <p className="mt-3 truncate text-[10px] font-extrabold uppercase tracking-widest text-ink/45">ID {product.id}</p>
-                  <h3 className="mt-1 line-clamp-2 min-h-10 font-display text-lg leading-tight">{product.name}</h3>
+                  <h3 className="mt-1 line-clamp-3 min-h-10 break-words font-display text-[13px] leading-tight min-[360px]:text-[15px] sm:text-lg" title={product.name}>{product.name}</h3>
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-ink/55"><span>{currency.format(product.price)}</span><span>{product.stock === undefined ? "—" : product.stock <= 0 ? "Sin stock" : `${product.stock} stock`}</span></div>
-                  <label className="mt-3 flex cursor-pointer items-center justify-center rounded-full border-2 border-ink bg-cream px-3 py-2 text-center text-xs font-extrabold transition hover:bg-yellow">
+                  {/* mt-auto keeps the photo/edit actions aligned across a row
+                      even when product names wrap to different line counts. */}
+                  <label className="mt-auto flex cursor-pointer items-center justify-center rounded-full border-2 border-ink bg-cream px-3 py-2 text-center text-xs font-extrabold transition hover:bg-yellow">
                     {uploadingId === product.id ? "Guardando…" : productHasPhoto(product, localPhotoUrls) ? "Cambiar foto" : "Subir foto"}
                     <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploadingId === product.id} onChange={(event) => uploadPhoto(product, event.target.files?.[0])} />
                   </label>

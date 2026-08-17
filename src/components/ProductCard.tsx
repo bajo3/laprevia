@@ -32,22 +32,14 @@ export default function ProductCard({
   useEffect(() => setImageFailed(false), [product.image]);
 
   const imageSrc = product.image && !imageFailed ? product.image : undefined;
-  const isOutOfStock = product.stock !== undefined && product.stock <= 0;
-  const reachedStockLimit = product.stock !== undefined && quantity >= product.stock;
 
   return (
     <div
-      className={`group relative flex flex-col rounded-3xl border-[3px] border-ink bg-white p-4 shadow-[4px_4px_0_var(--color-ink)] transition duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-ink)] sm:p-5 ${tiltClass}`}
+      className={`group relative flex flex-col rounded-3xl border-[3px] border-ink bg-white p-3 shadow-[4px_4px_0_var(--color-ink)] transition duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-ink)] sm:p-5 ${tiltClass}`}
     >
       {product.badge && (
         <span className={`absolute -top-3 -right-3 rotate-6 rounded-full border-2 border-ink px-3 py-1 text-xs font-extrabold uppercase ${badgeStyles[product.badge]}`}>
           {product.badge}
-        </span>
-      )}
-
-      {isOutOfStock && (
-        <span className="absolute -top-3 -left-3 -rotate-6 rounded-full border-2 border-ink bg-ink px-3 py-1 text-xs font-extrabold uppercase text-cream">
-          Sin stock
         </span>
       )}
 
@@ -72,27 +64,29 @@ export default function ProductCard({
         )}
       </div>
 
-      <p className="mt-4 text-[11px] font-extrabold uppercase tracking-wider text-ink/50">
+      <p className="mt-3 text-[10px] font-extrabold uppercase tracking-wider text-ink/50 sm:mt-4 sm:text-[11px]">
         {category ? `${category.emoji} ${category.label}` : ""}
       </p>
-      <h3 className="mt-1 line-clamp-2 font-display text-lg leading-tight text-ink sm:text-xl">
+      {/* Catalog names are long ("ABRILLANTADOR AEROSOL GLOBOS X1 GLOBBY"), so on
+          phones they get a smaller size and a third line instead of being cut. */}
+      <h3
+        className="mt-1 line-clamp-3 font-display text-[13px] leading-tight text-ink min-[360px]:text-[15px] sm:text-xl"
+        title={product.name}
+      >
         {product.name}
       </h3>
 
-      <div className={`mt-2 flex items-end justify-between ${isOutOfStock ? "opacity-50" : ""}`}>
-        <span className="font-display text-2xl text-pink">{currency.format(product.price)}</span>
-        <span className="text-sm font-semibold text-ink/50">/ {product.unit}</span>
+      <div className="mt-2 flex items-end justify-between gap-1">
+        <span className="font-display text-xl text-pink sm:text-2xl">{currency.format(product.price)}</span>
+        <span className="shrink-0 text-xs font-semibold text-ink/50 sm:text-sm">/ {product.unit}</span>
       </div>
 
-      <p className={`mt-1 text-xs font-extrabold ${isOutOfStock ? "text-pink" : "text-teal-dark"}`}>
-        {isOutOfStock
-          ? "Sin stock"
-          : product.stock === undefined
-            ? "Consultar stock"
-            : `${product.stock} ${product.stock === 1 ? "disponible" : "disponibles"}`}
-      </p>
+      {/* Stock is deliberately not shown in the public catalog — availability is
+          confirmed by the shop over WhatsApp. The admin panel still shows it. */}
 
-      <div className="mt-3">
+      {/* mt-auto pins the action row to the card bottom so the buttons line up
+          across a grid row even when titles run to different line counts. */}
+      <div className="mt-auto pt-3">
         {quantity > 0 ? (
           <div className="flex items-center justify-between rounded-full border-2 border-ink bg-yellow shadow-[3px_3px_0_var(--color-ink)]">
             <button
@@ -113,8 +107,7 @@ export default function ProductCard({
             <button
               type="button"
               onClick={() => onChangeQuantity(product, 1)}
-              disabled={reachedStockLimit}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-r-full text-2xl font-black text-ink transition hover:bg-ink hover:text-yellow disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-r-full text-2xl font-black text-ink transition hover:bg-ink hover:text-yellow"
               aria-label={`Agregar una unidad de ${product.name}`}
             >
               +
@@ -124,10 +117,9 @@ export default function ProductCard({
           <button
             type="button"
             onClick={() => onChangeQuantity(product, 1)}
-            disabled={isOutOfStock}
-            className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full border-2 border-ink bg-pink px-4 font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-ink bg-pink px-2 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 sm:px-4 sm:text-base"
           >
-            {isOutOfStock ? "Sin stock" : "＋ Agregar"}
+            ＋ Agregar
           </button>
         )}
       </div>

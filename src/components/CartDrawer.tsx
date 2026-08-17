@@ -157,12 +157,16 @@ export function CartDrawer({
                       <CartProductThumb product={product} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-display text-lg text-ink">{product.name}</h3>
-                      <p className="text-sm font-bold text-pink">
+                      {/* Two lines instead of truncating: in the cart the shopper
+                          needs to recognise what they are about to order. */}
+                      <h3 className="line-clamp-2 font-display text-base leading-tight text-ink sm:text-lg">
+                        {product.name}
+                      </h3>
+                      <p className="mt-0.5 text-sm font-bold text-pink">
                         {currency.format(product.price)} c/u
                       </p>
                     </div>
-                    <p className="font-display text-lg text-ink">
+                    <p className="shrink-0 font-display text-lg text-ink">
                       {currency.format(product.price * quantity)}
                     </p>
                   </div>
@@ -183,8 +187,7 @@ export function CartDrawer({
                       <button
                         type="button"
                         onClick={() => onChangeQuantity(product, 1)}
-                        disabled={product.stock !== undefined && quantity >= product.stock}
-                        className="flex h-9 w-9 items-center justify-center rounded-r-full text-xl font-black transition hover:bg-teal hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                        className="flex h-9 w-9 items-center justify-center rounded-r-full text-xl font-black transition hover:bg-teal hover:text-white"
                         aria-label={`Agregar una unidad de ${product.name}`}
                       >
                         +
@@ -202,7 +205,7 @@ export function CartDrawer({
               ))}
             </div>
 
-            <div className="border-t-[3px] border-ink bg-white px-5 pb-5 pt-4">
+            <div className="border-t-[3px] border-ink bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-4">
               <div className="rounded-2xl bg-navy p-5 text-cream shadow-[4px_4px_0_var(--color-yellow)]">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-extrabold uppercase tracking-widest text-cream/60">
@@ -219,7 +222,7 @@ export function CartDrawer({
                 href={whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border-[3px] border-ink bg-teal px-5 py-4 font-display text-xl text-white shadow-[4px_4px_0_var(--color-ink)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-ink)]"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border-[3px] border-ink bg-teal px-4 py-4 font-display text-lg text-white shadow-[4px_4px_0_var(--color-ink)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-ink)] sm:px-5 sm:text-xl"
               >
                 <span aria-hidden="true">💬</span>
                 Enviar pedido por WhatsApp
