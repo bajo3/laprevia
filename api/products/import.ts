@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from "../_lib/supabase";
-import { isAdminAuthorized } from "../_lib/auth";
-import { json } from "../_lib/json";
+import { getSupabaseAdmin } from "../_lib/supabase.js";
+import { isAdminAuthorized } from "../_lib/auth.js";
+import { json } from "../_lib/json.js";
 
 export const config = { runtime: "edge" };
 

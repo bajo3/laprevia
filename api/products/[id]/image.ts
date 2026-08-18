@@ -1,6 +1,7 @@
-import { getSupabaseAdmin } from "../../_lib/supabase";
-import { isAdminAuthorized } from "../../_lib/auth";
-import { json } from "../../_lib/json";
+import { getSupabaseAdmin } from "../../_lib/supabase.js";
+import { isAdminAuthorized } from "../../_lib/auth.js";
+import { json } from "../../_lib/json.js";
+import { lastSegment } from "../../_lib/product.js";
 
 export const config = { runtime: "edge" };
 
@@ -66,7 +67,7 @@ export default async function handler(request: Request) {
         .eq("id", id);
       if (currentKey && currentKey !== nextKey) await supabase.storage.from(BUCKET).remove([currentKey]);
 
-      const version = nextKey.split("/").at(-1);
+      const version = lastSegment(nextKey);
       return json({
         id,
         image: `/api/products/${encodeURIComponent(id)}/image?v=${encodeURIComponent(version ?? "")}`,

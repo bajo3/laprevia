@@ -41,6 +41,13 @@ export function isPayloadError(value: ProductPayload | ProductPayloadError): val
 export function productImageUrl(id: string, imageKey: string | null | undefined) {
   const base = `/api/products/${encodeURIComponent(id)}/image`;
   if (!imageKey) return undefined;
-  const version = String(imageKey).split("/").at(-1);
+  const version = lastSegment(String(imageKey));
   return `${base}?v=${encodeURIComponent(version ?? "")}`;
+}
+
+/** Last "/"-separated segment, without relying on Array.prototype.at
+ *  (needs es2022 lib, which Vercel's diagnostic pass for api/ didn't have). */
+export function lastSegment(value: string): string | undefined {
+  const parts = value.split("/");
+  return parts[parts.length - 1];
 }
