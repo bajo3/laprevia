@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import AdminLogin from "./AdminLogin";
 import * as XLSX from "xlsx";
 import categoryMap from "../data/category-map.json";
 import { categories } from "../data/catalog-config";
@@ -85,7 +86,7 @@ function apiFailure(response: Response): ApiFailure {
       ? "unavailable"
       : "server";
   const message = kind === "unauthorized"
-    ? "La clave de administración no es válida."
+    ? "Tu sesión no es válida. Iniciá sesión de nuevo."
     : kind === "unavailable"
       ? "El backend no está disponible."
       : "El servidor no pudo completar la operación.";
@@ -159,7 +160,10 @@ function parseExcelFile(buffer: ArrayBuffer, fileName: string, existingProducts:
   return { fileName, products: parsed, skipped };
 }
 
+const SESSION_KEY = "laprevia-admin-session";
+
 export default function AdminDashboard() {
+  const [session, setSession] = useState<string | null>(() => sessionStorage.getItem(SESSION_KEY));
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("missing");
@@ -169,7 +173,6 @@ export default function AdminDashboard() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [localPhotoUrls, setLocalPhotoUrls] = useState<Record<string, string>>({});
   const [isImporting, setIsImporting] = useState(false);
-  const [adminKey, setAdminKey] = useState("");
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyDraft);
@@ -233,7 +236,7 @@ export default function AdminDashboard() {
     try {
       const response = await fetch("/api/products/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(adminKey ? { Authorization: `Bearer ${adminKey}` } : {}) },
+        headers: { "Content-Type": "application/json", ...(session ? { Authorization: `Bearer ${session}` } : {}) },
         body: JSON.stringify({ products: preview.products }),
       });
       if (!response.ok) throw apiFailure(response);
@@ -248,6 +251,11 @@ export default function AdminDashboard() {
       setNotice({ tone: "success", text: "Importación confirmada. Se actualizaron precios, stock y productos; las fotos existentes se conservaron." });
     } catch (error) {
       const kind = failureKind(error);
+      if (kind === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return;
+      }
       if (kind !== "unavailable" && kind !== "network") {
         setNotice({ tone: "error", text: error instanceof Error ? error.message : "No se pudo guardar la importación." });
         return;
@@ -308,7 +316,7 @@ export default function AdminDashboard() {
       const endpoint = editingId ? `/api/products/${encodeURIComponent(editingId)}` : "/api/products";
       const response = await fetch(endpoint, {
         method: editingId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json", ...(adminKey ? { Authorization: `Bearer ${adminKey}` } : {}) },
+        headers: { "Content-Type": "application/json", ...(session ? { Authorization: `Bearer ${session}` } : {}) },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw apiFailure(response);
@@ -322,6 +330,11 @@ export default function AdminDashboard() {
       setNotice({ tone: "success", text: editingId ? "Producto actualizado." : "Producto agregado al catálogo." });
     } catch (error) {
       const kind = failureKind(error);
+      if (kind === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return;
+      }
       if (kind !== "unavailable" && kind !== "network") {
         setNotice({ tone: "error", text: error instanceof Error ? error.message : "No se pudo guardar el producto." });
         return;
@@ -345,13 +358,18 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/products/${encodeURIComponent(product.id)}`, {
         method: "DELETE",
-        headers: adminKey ? { Authorization: `Bearer ${adminKey}` } : {},
+        headers: session ? { Authorization: `Bearer ${session}` } : {},
       });
       if (!response.ok) throw apiFailure(response);
       setCatalog((current) => current.filter((item) => item.id !== product.id));
       setNotice({ tone: "success", text: "Producto sacado del catálogo. Sus datos y foto quedaron conservados." });
     } catch (error) {
       const kind = failureKind(error);
+      if (kind === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return;
+      }
       if (kind !== "unavailable" && kind !== "network") {
         setNotice({ tone: "error", text: error instanceof Error ? error.message : "No se pudo sacar el producto." });
         return;
@@ -379,7 +397,7 @@ export default function AdminDashboard() {
       formData.append("file", file);
       const response = await fetch(`/api/products/${encodeURIComponent(product.id)}/image`, {
         method: "POST",
-        headers: adminKey ? { Authorization: `Bearer ${adminKey}` } : {},
+        headers: session ? { Authorization: `Bearer ${session}` } : {},
         body: formData,
       });
       if (!response.ok) throw apiFailure(response);
@@ -394,6 +412,11 @@ export default function AdminDashboard() {
       setNotice({ tone: "success", text: `Foto guardada para ${product.name}.` });
     } catch (error) {
       const kind = failureKind(error);
+      if (kind === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return;
+      }
       if (kind !== "unavailable" && kind !== "network") {
         URL.revokeObjectURL(localUrl);
         setLocalPhotoUrls((current) => {
@@ -410,6 +433,20 @@ export default function AdminDashboard() {
     }
   }
 
+  function handleLogin(token: string) {
+    sessionStorage.setItem(SESSION_KEY, token);
+    setSession(token);
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession(null);
+  }
+
+  if (!session) {
+    return <AdminLogin onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-cream">
       <header className="border-b-4 border-ink bg-navy text-cream">
@@ -419,7 +456,16 @@ export default function AdminDashboard() {
             <h1 className="font-display mt-1 text-3xl sm:text-4xl">Panel de productos</h1>
             <p className="mt-1 max-w-xl text-sm text-cream/65">Actualizá el catálogo con el Excel y completá una foto por producto.</p>
           </div>
-          <a href="/" className="shrink-0 whitespace-nowrap rounded-full border-2 border-cream/40 px-4 py-2 text-sm font-extrabold transition hover:border-yellow hover:text-yellow">Ver catálogo</a>
+          <div className="flex shrink-0 items-center gap-2">
+            <a href="/" className="whitespace-nowrap rounded-full border-2 border-cream/40 px-4 py-2 text-sm font-extrabold transition hover:border-yellow hover:text-yellow">Ver catálogo</a>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="whitespace-nowrap rounded-full border-2 border-cream/40 px-4 py-2 text-sm font-extrabold transition hover:border-pink hover:text-pink"
+            >
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
@@ -450,7 +496,6 @@ export default function AdminDashboard() {
               <p className="mt-1 text-sm text-ink/60">La importación usa el ID como clave y conserva las fotos ya cargadas.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <input type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="Clave de administración" aria-label="Clave de administración" className="rounded-full border-2 border-ink bg-cream px-4 py-2.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-pink/20" />
               <label className="flex cursor-pointer items-center justify-center rounded-full border-[3px] border-ink bg-yellow px-5 py-3 text-center font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5">
                 📄 Elegir Excel
                 <input type="file" accept=".xlsx,.xls" className="sr-only" onChange={(event) => handleExcelChange(event.target.files?.[0])} />
