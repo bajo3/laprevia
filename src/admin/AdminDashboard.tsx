@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AdminLogin from "./AdminLogin";
 import * as XLSX from "xlsx";
 import categoryMap from "../data/category-map.json";
 import { categories } from "../data/catalog-config";
-import { fetchBundledCatalog, fetchCatalogProducts, normalizeRemoteProduct } from "../data/catalog-api";
+import { fetchAllProducts, fetchBundledCatalog, fetchCatalogPage, normalizeRemoteProduct, PAGE_SIZE } from "../data/catalog-api";
 import type { Product } from "../data/products";
 
 type PhotoFilter = "all" | "missing" | "ready";
@@ -166,8 +166,15 @@ export default function AdminDashboard() {
   const [session, setSession] = useState<string | null>(() => sessionStorage.getItem(SESSION_KEY));
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("missing");
-  const [visibleCount, setVisibleCount] = useState(48);
+  const [totalCount, setTotalCount] = useState(0);
+  const [withPhotoCount, setWithPhotoCount] = useState(0);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLocalMode, setIsLocalMode] = useState(false);
+  const requestId = useRef(0);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "warning" | "error"; text: string } | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -180,48 +187,108 @@ export default function AdminDashboard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadCatalog() {
-      try {
-        const remoteProducts = await fetchCatalogProducts();
-        const products = remoteProducts.length > 0 ? remoteProducts : await fetchBundledCatalog();
-        if (!cancelled) setCatalog(products);
-      } catch {
-        try {
-          const products = await fetchBundledCatalog();
-          if (!cancelled) {
-            setCatalog(products);
-            setNotice({ tone: "warning", text: "Modo local: el backend todavía no está conectado. Las fotos se previsualizan en esta sesión." });
-          }
-        } catch {
-          if (!cancelled) setNotice({ tone: "error", text: "No se pudo cargar el catálogo local." });
-        }
-      }
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  /** Counts come from the server so they describe the whole catalog, not just
+   *  the page on screen. */
+  const refreshCounts = useCallback(async () => {
+    try {
+      const [all, ready] = await Promise.all([
+        fetchCatalogPage({ limit: 1 }),
+        fetchCatalogPage({ limit: 1, photo: "ready" }),
+      ]);
+      setTotalCount(all.total);
+      setWithPhotoCount(ready.total);
+    } catch {
+      // Counts are informational; a failure here must not block the dashboard.
     }
-    void loadCatalog();
-    return () => { cancelled = true; };
   }, []);
 
-  const withPhoto = useMemo(() => catalog.filter((product) => productHasPhoto(product, localPhotoUrls)).length, [catalog, localPhotoUrls]);
-  const withoutPhoto = catalog.length - withPhoto;
+  const loadPage = useCallback(async () => {
+    const id = ++requestId.current;
+    setIsCatalogLoading(true);
+    try {
+      const page = await fetchCatalogPage({
+        query: debouncedQuery,
+        photo: photoFilter,
+        limit: PAGE_SIZE,
+      });
+      if (id !== requestId.current) return;
+      setCatalog(page.products);
+      setFilteredTotal(page.total);
+      setIsLocalMode(false);
+    } catch {
+      try {
+        const products = await fetchBundledCatalog();
+        if (id !== requestId.current) return;
+        const normalizedQuery = normalize(debouncedQuery);
+        const matches = products.filter((product) => {
+          const matchesQuery = !normalizedQuery || normalize(`${product.name} ${product.id} ${product.code ?? ""}`).includes(normalizedQuery);
+          const matchesPhoto = photoFilter === "all" || (photoFilter === "ready" ? Boolean(product.image) : !product.image);
+          return matchesQuery && matchesPhoto;
+        });
+        setCatalog(matches.slice(0, PAGE_SIZE));
+        setFilteredTotal(matches.length);
+        setTotalCount(products.length);
+        setWithPhotoCount(products.filter((product) => Boolean(product.image)).length);
+        setIsLocalMode(true);
+        setNotice({ tone: "warning", text: "Modo local: el backend todavía no está conectado. Las fotos se previsualizan en esta sesión." });
+      } catch {
+        if (id !== requestId.current) return;
+        setNotice({ tone: "error", text: "No se pudo cargar el catálogo." });
+      }
+    } finally {
+      if (id === requestId.current) setIsCatalogLoading(false);
+    }
+  }, [debouncedQuery, photoFilter]);
 
-  const filteredProducts = useMemo(() => {
-    const normalizedQuery = normalize(query);
-    return catalog.filter((product) => {
-      const matchesQuery = !normalizedQuery || normalize(`${product.name} ${product.id} ${product.code ?? ""}`).includes(normalizedQuery);
-      const matchesPhoto = photoFilter === "all" || (photoFilter === "ready" ? productHasPhoto(product, localPhotoUrls) : !productHasPhoto(product, localPhotoUrls));
-      return matchesQuery && matchesPhoto;
-    });
-  }, [catalog, localPhotoUrls, photoFilter, query]);
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
 
-  useEffect(() => setVisibleCount(48), [photoFilter, query]);
+  useEffect(() => {
+    void refreshCounts();
+  }, [refreshCounts]);
 
-  const visibleProducts = filteredProducts.slice(0, visibleCount);
+  async function loadMore() {
+    if (isLoadingMore || isLocalMode) return;
+    setIsLoadingMore(true);
+    try {
+      const page = await fetchCatalogPage({
+        query: debouncedQuery,
+        photo: photoFilter,
+        offset: catalog.length,
+        limit: PAGE_SIZE,
+      });
+      setCatalog((current) => [...current, ...page.products]);
+      setFilteredTotal(page.total);
+    } catch {
+      // Leave the current page in place so the button can be retried.
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }
+
+  const withPhoto = withPhotoCount;
+  const withoutPhoto = Math.max(0, totalCount - withPhotoCount);
+  const visibleProducts = catalog;
 
   async function handleExcelChange(file: File | undefined) {
     if (!file) return;
     try {
-      const nextPreview = parseExcelFile(await file.arrayBuffer(), file.name, catalog);
+      // The parser needs every existing row, not just the page on screen, or
+      // products outside it would lose their manually-assigned category and
+      // their photo on the next import.
+      setNotice({ tone: "success", text: "Leyendo el catálogo actual para conservar categorías y fotos…" });
+      let existing: Product[] = [];
+      try {
+        existing = await fetchAllProducts();
+      } catch {
+        existing = catalog;
+      }
+      const nextPreview = parseExcelFile(await file.arrayBuffer(), file.name, existing);
       setPreview(nextPreview);
       setNotice({ tone: "success", text: `${nextPreview.products.length.toLocaleString("es-AR")} productos listos para revisar.` });
     } catch (error) {
@@ -240,13 +307,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ products: preview.products }),
       });
       if (!response.ok) throw apiFailure(response);
-      let remoteProducts: Product[] = [];
-      try {
-        remoteProducts = await fetchCatalogProducts();
-      } catch {
-        // La importación ya se guardó; mostramos la misma versión que el usuario confirmó.
-      }
-      setCatalog(remoteProducts.length > 0 ? remoteProducts : preview.products);
+      await Promise.all([loadPage(), refreshCounts()]);
       setPreview(null);
       setNotice({ tone: "success", text: "Importación confirmada. Se actualizaron precios, stock y productos; las fotos existentes se conservaron." });
     } catch (error) {
@@ -541,7 +602,11 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <p className="mt-3 text-sm font-bold text-ink/55">Mostrando {visibleProducts.length.toLocaleString("es-AR")} de {filteredProducts.length.toLocaleString("es-AR")}</p>
+          <p className="mt-3 text-sm font-bold text-ink/55">Mostrando {visibleProducts.length.toLocaleString("es-AR")} de {filteredTotal.toLocaleString("es-AR")}</p>
+
+          {isCatalogLoading && (
+            <p className="mt-6 text-center text-sm font-bold text-ink/50" role="status">Cargando productos…</p>
+          )}
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
             {visibleProducts.map((product) => {
@@ -570,9 +635,9 @@ export default function AdminDashboard() {
             })}
           </div>
 
-          {visibleCount < filteredProducts.length && (
-            <button type="button" onClick={() => setVisibleCount((current) => current + 48)} className="mx-auto mt-8 flex rounded-full border-[3px] border-ink bg-yellow px-6 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5">
-              Mostrar más productos
+          {visibleProducts.length < filteredTotal && (
+            <button type="button" onClick={() => void loadMore()} disabled={isLoadingMore} className="mx-auto mt-8 flex rounded-full border-[3px] border-ink bg-yellow px-6 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">
+              {isLoadingMore ? "Cargando…" : "Mostrar más productos"}
             </button>
           )}
         </section>

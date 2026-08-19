@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import CategoryNav from "./components/CategoryNav";
@@ -8,7 +8,7 @@ import { CartDrawer } from "./components/CartDrawer";
 import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
 import { categories } from "./data/catalog-config";
-import { fetchBundledCatalog, fetchCatalogProducts } from "./data/catalog-api";
+import { fetchBundledCatalog, fetchCatalogPage, PAGE_SIZE } from "./data/catalog-api";
 import type { Product } from "./data/products";
 
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
@@ -23,83 +23,128 @@ const normalizeSearch = (value: string) =>
   value
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[̀-ͯ]/g, "");
+
+/** The cart keeps a snapshot of each product. Results are paged now, so a
+ *  product in the cart is often no longer in the page on screen — deriving the
+ *  cart from the visible list would silently drop those lines. */
+type CartEntry = { product: Product; quantity: number };
+
+function matchesLocally(product: Product, query: string, category: string | null) {
+  const normalizedQuery = normalizeSearch(query.trim());
+  const matchesCategory = !category || product.category === category;
+  const matchesSearch =
+    !normalizedQuery ||
+    normalizeSearch(product.name).includes(normalizedQuery) ||
+    product.id.includes(normalizedQuery) ||
+    normalizeSearch(product.code ?? "").includes(normalizedQuery);
+  return matchesCategory && matchesSearch;
+}
 
 function PublicCatalog() {
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [cart, setCart] = useState<Record<string, CartEntry>>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(48);
+
+  /** Populated only when the API is unreachable: the whole bundled catalog is
+   *  held in memory and filtered in the browser, as before. */
+  const fallbackCatalog = useRef<Product[] | null>(null);
+  /** Guards against a slow earlier request overwriting a newer one. */
+  const requestId = useRef(0);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadCatalog() {
-      try {
-        const remoteProducts = await fetchCatalogProducts();
-        const products = remoteProducts.length > 0 ? remoteProducts : await fetchBundledCatalog();
-        if (!cancelled) setCatalogProducts(products);
-      } catch {
-        try {
-          const products = await fetchBundledCatalog();
-          if (!cancelled) setCatalogProducts(products);
-        } catch {
-          if (!cancelled) setCatalogProducts([]);
-        }
-      } finally {
-        if (!cancelled) setIsCatalogLoading(false);
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const loadFirstPage = useCallback(async () => {
+    const id = ++requestId.current;
+    setIsCatalogLoading(true);
+
+    const applyFallback = (all: Product[]) => {
+      const matches = all.filter((product) => matchesLocally(product, debouncedQuery, activeCategory));
+      if (id !== requestId.current) return;
+      setProducts(matches.slice(0, PAGE_SIZE));
+      setTotal(matches.length);
+    };
+
+    try {
+      if (fallbackCatalog.current) {
+        applyFallback(fallbackCatalog.current);
+        return;
       }
+      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory });
+      if (id !== requestId.current) return;
+      setProducts(page.products);
+      setTotal(page.total);
+    } catch {
+      try {
+        const all = fallbackCatalog.current ?? (await fetchBundledCatalog());
+        fallbackCatalog.current = all;
+        applyFallback(all);
+      } catch {
+        if (id !== requestId.current) return;
+        setProducts([]);
+        setTotal(0);
+      }
+    } finally {
+      if (id === requestId.current) setIsCatalogLoading(false);
     }
-    void loadCatalog();
-    return () => { cancelled = true; };
-  }, []);
+  }, [activeCategory, debouncedQuery]);
 
-  const filtered = useMemo(() => {
-    const normalizedQuery = normalizeSearch(query.trim());
+  useEffect(() => {
+    void loadFirstPage();
+  }, [loadFirstPage]);
 
-    return catalogProducts.filter((product) => {
-      const matchesCategory = !activeCategory || product.category === activeCategory;
-      const matchesSearch =
-        !normalizedQuery ||
-        normalizeSearch(product.name).includes(normalizedQuery) ||
-        product.id.includes(normalizedQuery) ||
-        normalizeSearch(product.code ?? "").includes(normalizedQuery);
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    const offset = products.length;
+    try {
+      if (fallbackCatalog.current) {
+        const matches = fallbackCatalog.current.filter((product) =>
+          matchesLocally(product, debouncedQuery, activeCategory),
+        );
+        setProducts(matches.slice(0, offset + PAGE_SIZE));
+      } else {
+        const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, offset });
+        setProducts((current) => [...current, ...page.products]);
+        setTotal(page.total);
+      }
+    } catch {
+      // Keep what is already on screen; the button stays available to retry.
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [activeCategory, debouncedQuery, isLoadingMore, products.length]);
 
-      return matchesCategory && matchesSearch;
-    });
-  }, [activeCategory, catalogProducts, query]);
+  const cartLines = useMemo(() => Object.values(cart), [cart]);
 
-  useEffect(() => setVisibleCount(48), [activeCategory, query]);
-
-  const visibleProducts = filtered.slice(0, visibleCount);
-
-  const cartLines = useMemo(
-    () =>
-      catalogProducts
-        .filter((product) => (cart[product.id] ?? 0) > 0)
-        .map((product) => ({ product, quantity: cart[product.id] })),
-    [cart, catalogProducts],
-  );
+  const quantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const [id, entry] of Object.entries(cart)) map[id] = entry.quantity;
+    return map;
+  }, [cart]);
 
   const cartCount = useMemo(
-    () => Object.values(cart).reduce((sum, quantity) => sum + quantity, 0),
-    [cart],
+    () => cartLines.reduce((sum, line) => sum + line.quantity, 0),
+    [cartLines],
   );
 
   const cartTotal = useMemo(
-    () =>
-      cartLines.reduce(
-        (sum, line) => sum + line.product.price * line.quantity,
-        0,
-      ),
+    () => cartLines.reduce((sum, line) => sum + line.product.price * line.quantity, 0),
     [cartLines],
   );
 
   const changeQuantity = useCallback((product: Product, delta: number) => {
     setCart((current) => {
-      const currentQuantity = current[product.id] ?? 0;
+      const currentQuantity = current[product.id]?.quantity ?? 0;
       // No stock ceiling: the catalog does not publish stock, so silently
       // refusing to increment would be unexplainable to the shopper. The shop
       // confirms availability when the WhatsApp order arrives.
@@ -111,7 +156,7 @@ function PublicCatalog() {
         return nextCart;
       }
 
-      return { ...current, [product.id]: nextQuantity };
+      return { ...current, [product.id]: { product, quantity: nextQuantity } };
     });
   }, []);
 
@@ -122,31 +167,33 @@ function PublicCatalog() {
   return (
     <>
       <Header cartCount={cartCount} onCartOpen={openCart} />
-      <Hero />
+      <main id="contenido">
+        <Hero />
 
-      <p className="mx-auto mt-6 mb-2 max-w-2xl px-5 text-center text-sm text-ink/60 sm:mt-10 sm:rounded-2xl sm:border-2 sm:border-dashed sm:border-ink/30 sm:py-3">
-        🧾 Armá tu pedido y envialo por WhatsApp. El total es estimado y se confirma al responderte.
-      </p>
+        <p className="mx-auto mt-6 mb-2 max-w-2xl px-5 text-center text-sm text-ink/60 sm:mt-10 sm:rounded-2xl sm:border-2 sm:border-dashed sm:border-ink/30 sm:py-3">
+          🧾 Armá tu pedido y envialo por WhatsApp. El total es estimado y se confirma al responderte.
+        </p>
 
-      <SearchBar query={query} resultCount={filtered.length} onQueryChange={setQuery} />
-      <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
-      {isCatalogLoading ? (
-        <div className="mx-auto max-w-2xl px-5 py-16 text-center" role="status">
-          <p className="font-display text-3xl">Cargando catálogo…</p>
-          <p className="mt-2 text-sm font-semibold text-ink/50">Estamos preparando los productos para vos.</p>
-        </div>
-      ) : (
-        <ProductGrid
-          products={visibleProducts}
-          categories={categories}
-          quantities={cart}
-          onChangeQuantity={changeQuantity}
-          hasMore={visibleCount < filtered.length}
-          totalCount={filtered.length}
-          onLoadMore={() => setVisibleCount((current) => current + 48)}
+        <SearchBar
+          query={query}
+          resultCount={total}
+          isSearching={isCatalogLoading}
+          onQueryChange={setQuery}
         />
-      )}
-      <InfoTicket />
+        <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
+        <ProductGrid
+          products={products}
+          categories={categories}
+          quantities={quantities}
+          onChangeQuantity={changeQuantity}
+          isLoading={isCatalogLoading}
+          isLoadingMore={isLoadingMore}
+          hasMore={products.length < total}
+          totalCount={total}
+          onLoadMore={loadMore}
+        />
+        <InfoTicket />
+      </main>
       <Footer hasFloatingBar={cartCount > 0} />
 
       {cartCount > 0 && (

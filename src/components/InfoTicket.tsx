@@ -40,13 +40,22 @@ export default function InfoTicket() {
               <span className="text-2xl">{item.icon}</span>
               <div>
                 <dt className="text-xs font-extrabold uppercase tracking-widest text-white/60">{item.label}</dt>
-                {item.href ? (
-                  <a href={item.href} target="_blank" rel="noreferrer" className="font-display text-lg underline decoration-yellow decoration-2 underline-offset-4">
-                    {item.value}
-                  </a>
-                ) : (
-                  <dd className="font-display text-lg">{item.value}</dd>
-                )}
+                {/* Every term needs its <dd>; the link goes inside it rather
+                    than replacing it, which left the <dt> unpaired. */}
+                <dd className="font-display text-lg">
+                  {item.href ? (
+                    <a
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-yellow decoration-2 underline-offset-4 transition hover:text-yellow"
+                    >
+                      {item.value}
+                    </a>
+                  ) : (
+                    item.value
+                  )}
+                </dd>
               </div>
             </div>
           ))}

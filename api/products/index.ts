@@ -28,10 +28,26 @@ async function listProducts(request: Request) {
     .range(offset, offset + limit - 1);
 
   if (query) {
-    const like = `%${query}%`;
+    // PostgREST parses `or=(...)` as a comma-separated list, so a comma, paren
+    // or dot typed in the search box would split the filter into nonsense.
+    // Quoting the value and escaping quotes/backslashes keeps it one literal.
+    // % and _ are escaped too, otherwise they act as LIKE wildcards.
+    const escaped = query
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_");
+    const like = `"%${escaped}%"`;
     builder = builder.or(`name.ilike.${like},id.ilike.${like},code.ilike.${like}`);
   }
   if (category) builder = builder.eq("category", category);
+
+  // The dashboard's core workflow is "show me what still needs a photo".
+  // Filtering that in Postgres keeps it accurate across the whole catalog
+  // rather than only within the page already sent to the browser.
+  const photo = (url.searchParams.get("photo") ?? "").trim();
+  if (photo === "missing") builder = builder.is("image_key", null);
+  if (photo === "ready") builder = builder.not("image_key", "is", null);
 
   const { data, count, error } = await builder;
   if (error) return json({ error: error.message }, { status: 500 });

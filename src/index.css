@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Lilita+One&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -24,6 +23,16 @@
 
 html {
   scroll-behavior: smooth;
+  /* Sticky header (64px) + sticky category rail (76px). Without this, jumping
+     to #catalogo buries the first row of products behind them. */
+  scroll-padding-top: 9rem;
+}
+
+@media (min-width: 640px) {
+  /* From sm the category rail is static, so only the header overlaps. */
+  html {
+    scroll-padding-top: 5.5rem;
+  }
 }
 
 body {
@@ -83,15 +92,40 @@ body {
   animation: float-slow 6s ease-in-out infinite;
 }
 
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.animate-marquee {
-  animation: marquee 22s linear infinite;
-}
-
 ::selection {
   background: var(--color-pink);
   color: white;
+}
+
+/* Keyboard focus. Tailwind's reset removes the UA outline, which left every
+   control on the site with no visible focus state at all. :focus-visible keeps
+   it invisible for mouse users. */
+:focus-visible {
+  /* Longhand rather than the `outline` shorthand, and !important because the
+     Tailwind shadow and text-colour utilities otherwise win, leaving the ring
+     drawn in currentColor (white on the pink buttons). A focus indicator is an
+     accessibility guarantee, so it should not lose to styling.
+     Dark ring plus a bright halo keeps it visible on cream and on navy alike. */
+  outline-style: solid !important;
+  outline-width: 3px !important;
+  outline-color: var(--color-ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px var(--color-yellow) !important;
+}
+
+/* Respect the OS "reduce motion" setting: drop the floating emoji, the smooth
+   scrolling and the hover translations rather than animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

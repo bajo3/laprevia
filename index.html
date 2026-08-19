@@ -2,12 +2,50 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Catálogo de Distribuidora La Previa — cotillón, snacks, golosinas, helados e importados en Tandil." />
-    <title>La Previa · Catálogo</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>" />
+    <meta name="theme-color" content="#1c1140" />
+
+    <!-- Fonts as real <link>s instead of a CSS @import: an @import inside the
+         stylesheet can only start downloading after that stylesheet has been
+         fetched and parsed, which delayed the fonts by ~350ms. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Manrope:wght@400;500;600;700;800&display=swap"
+    />
+
+    <title>La Previa · Catálogo mayorista y minorista en Tandil</title>
+    <meta
+      name="description"
+      content="Catálogo de Distribuidora La Previa — cotillón, snacks, golosinas, helados e importados en Tandil. Armá tu pedido y envialo por WhatsApp."
+    />
+    <link rel="canonical" href="https://laprevia-lime.vercel.app/" />
+
+    <!-- The catalog is shared mostly over WhatsApp and Instagram, where a link
+         with no preview card looks like spam. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Distribuidora La Previa" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:title" content="La Previa · Cotillón, snacks y de todo un poco" />
+    <meta
+      property="og:description"
+      content="Distribuidora mayorista y minorista en Tandil. Mirá el catálogo y pedí por WhatsApp."
+    />
+    <meta property="og:url" content="https://laprevia-lime.vercel.app/" />
+    <meta property="og:image" content="https://laprevia-lime.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
+    <a
+      href="#contenido"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[200] focus:rounded-full focus:border-2 focus:border-ink focus:bg-yellow focus:px-5 focus:py-3 focus:font-extrabold"
+    >
+      Saltar al contenido
+    </a>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
