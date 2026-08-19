@@ -539,7 +539,7 @@ export default function AdminDashboard() {
         {/* 2-up on phones: stacked 1-up pushed ~580px of stats above the actual work. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            ["Productos activos", catalog.length.toLocaleString("es-AR"), "📦", "bg-yellow"],
+            ["Productos activos", totalCount.toLocaleString("es-AR"), "📦", "bg-yellow"],
             ["Con foto", withPhoto.toLocaleString("es-AR"), "📸", "bg-teal text-white"],
             ["Pendientes", withoutPhoto.toLocaleString("es-AR"), "🖼️", "bg-pink text-white"],
             ["Categorías", categories.length.toString(), "🏷️", "bg-violet text-white"],
