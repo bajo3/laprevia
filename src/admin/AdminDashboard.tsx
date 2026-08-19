@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminLogin from "./AdminLogin";
+import { compressImage } from "./compress-image";
 import * as XLSX from "xlsx";
 import categoryMap from "../data/category-map.json";
 import { categories } from "../data/catalog-config";
@@ -442,16 +443,20 @@ export default function AdminDashboard() {
     }
   }
 
-  async function uploadPhoto(product: Product, file: File | undefined) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
+  async function uploadPhoto(product: Product, original: File | undefined) {
+    if (!original) return;
+    if (!original.type.startsWith("image/")) {
       setNotice({ tone: "error", text: "Elegí una imagen JPG, PNG o WebP." });
       return;
     }
 
+    setUploadingId(product.id);
+    // Phone photos run 2-5 MB. Shrinking before upload keeps the public
+    // catalog light, since shoppers load these as small thumbnails.
+    const file = await compressImage(original);
+
     const localUrl = URL.createObjectURL(file);
     setLocalPhotoUrls((current) => ({ ...current, [product.id]: localUrl }));
-    setUploadingId(product.id);
 
     try {
       const formData = new FormData();
@@ -614,7 +619,7 @@ export default function AdminDashboard() {
               return (
                 <article key={product.id} className="group relative flex min-w-0 flex-col rounded-3xl border-[3px] border-ink bg-white p-3 shadow-[4px_4px_0_var(--color-ink)] sm:p-4">
                   <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-cream-dark text-4xl sm:text-5xl">
-                    {imageSrc ? <img src={imageSrc} alt={product.name} className="h-full w-full object-cover" /> : <span aria-hidden="true">{product.emoji}</span>}
+                    {imageSrc ? <img src={imageSrc} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <span aria-hidden="true">{product.emoji}</span>}
                     {productHasPhoto(product, localPhotoUrls) && <span className="absolute right-2 top-2 rounded-full border-2 border-ink bg-teal px-2 py-1 text-xs font-black text-white">✓</span>}
                   </div>
                   <p className="mt-3 truncate text-[10px] font-extrabold uppercase tracking-widest text-ink/45">ID {product.id}</p>

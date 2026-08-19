@@ -54,6 +54,7 @@ export default function ProductCard({
             alt={product.name}
             className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
             onError={() => setImageFailed(true)}
           />
         )}
