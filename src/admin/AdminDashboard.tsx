@@ -3,8 +3,19 @@ import AdminLogin from "./AdminLogin";
 import { compressImage } from "./compress-image";
 import * as XLSX from "xlsx";
 import categoryMap from "../data/category-map.json";
-import { categories } from "../data/catalog-config";
-import { fetchAllProducts, fetchBundledCatalog, fetchCatalogPage, normalizeRemoteProduct, PAGE_SIZE } from "../data/catalog-api";
+import { categories, emojiByCategory } from "../data/catalog-config";
+import { FALLBACK_CATEGORY, guessCategory, isUnsorted, normalizeCategory } from "../data/categorize";
+import {
+  fetchAllProducts,
+  fetchBundledCatalog,
+  fetchCatalogPage,
+  fetchCategoryCounts,
+  moveProductsToCategories,
+  normalizeRemoteProduct,
+  PAGE_SIZE,
+  type CategoryCounts,
+  type CategoryMove,
+} from "../data/catalog-api";
 import type { Product } from "../data/products";
 
 type PhotoFilter = "all" | "missing" | "ready";
@@ -13,6 +24,17 @@ type ImportPreview = {
   fileName: string;
   products: Product[];
   skipped: number;
+  /** How many rows kept the section they already had in the catalog. Shown
+   *  before confirming so it is obvious the import respects the filing. */
+  keptCategories: number;
+};
+
+/** Result of scanning the general drawer for articles that clearly belong to
+ *  a real section. Held until the shop confirms the move. */
+type SortPreview = {
+  moves: CategoryMove[];
+  byCategory: Record<string, number>;
+  scanned: number;
 };
 
 type ProductDraft = {
@@ -30,29 +52,8 @@ const emptyDraft: ProductDraft = {
   code: "",
   price: "",
   stock: "",
-  category: "almacen",
+  category: FALLBACK_CATEGORY,
 };
-
-const emojiByCategory: Record<string, string> = {
-  cotillon: "🎉",
-  snacks: "🍟",
-  golosinas: "🍬",
-  galletitas: "🍪",
-  helados: "🍦",
-  importados: "🌐",
-  almacen: "🛒",
-  regalos: "🎁",
-};
-
-const categoryRules: Array<{ slug: string; words: string[] }> = [
-  { slug: "cotillon", words: ["globo", "guirnalda", "vincha", "cotillon", "vela", "piñata", "pinata", "disfraz", "antifaz", "confeti"] },
-  { slug: "helados", words: ["helado", "sorbete", "paleta"] },
-  { slug: "golosinas", words: ["chocolate", "gomita", "caramelo", "alfajor", "chicle", "turron", "oblea", "chupetin", "bombon"] },
-  { slug: "galletitas", words: ["galletita", "galleta", "vainilla"] },
-  { slug: "snacks", words: ["papas", "nachos", "mani", "pochoclo", "snack", "chizito"] },
-  { slug: "importados", words: ["importado", "coreano", "japones", "chino"] },
-  { slug: "regalos", words: ["taza", "peluche", "bijou", "llavero", "regalo", "agenda", "cuaderno", "lapicera"] },
-];
 
 const currency = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -98,11 +99,6 @@ function failureKind(error: unknown): ApiFailureKind | "network" {
   return error instanceof Error && "kind" in error ? (error as ApiFailure).kind : "network";
 }
 
-function guessCategory(name: string) {
-  const normalized = normalize(name);
-  return categoryRules.find((rule) => rule.words.some((word) => normalized.includes(normalize(word))))?.slug ?? "almacen";
-}
-
 function productHasPhoto(product: Product, localPhotoUrls: Record<string, string>) {
   return Boolean(product.image || localPhotoUrls[product.id]);
 }
@@ -129,6 +125,7 @@ function parseExcelFile(buffer: ArrayBuffer, fileName: string, existingProducts:
   const existingById = new Map(existingProducts.map((product) => [product.id, product]));
   const parsed: Product[] = [];
   let skipped = 0;
+  let keptCategories = 0;
 
   for (const row of rows) {
     const id = String(row[idKey] ?? "").trim();
@@ -141,9 +138,23 @@ function parseExcelFile(buffer: ArrayBuffer, fileName: string, existingProducts:
 
     const previous = existingById.get(id);
     const codeValue = codeKey ? String(row[codeKey] ?? "").trim() : previous?.code;
-    const category = typeof categoryMap[id as keyof typeof categoryMap] === "string"
-      ? categoryMap[id as keyof typeof categoryMap]
-      : previous?.category ?? guessCategory(name);
+    // The section already saved for this product wins over everything else.
+    // The seed map and the keyword guess only ever apply to an article the
+    // catalog has never seen, so a correction made from the panel is never
+    // undone by the next price list. The server enforces this too.
+    const seeded = typeof categoryMap[id as keyof typeof categoryMap] === "string"
+      ? normalizeCategory(categoryMap[id as keyof typeof categoryMap])
+      : FALLBACK_CATEGORY;
+    let category: string;
+    if (previous) {
+      category = normalizeCategory(previous.category);
+      keptCategories += 1;
+    } else {
+      // Most of the seed map predates the new sections and just says "general
+      // drawer", which carries no information. Only a seed naming a real
+      // section beats the keyword guess.
+      category = seeded === FALLBACK_CATEGORY ? guessCategory(name) : seeded;
+    }
     const stock = stockKey ? toNumber(row[stockKey]) : previous?.stock;
     parsed.push({
       id,
@@ -152,13 +163,13 @@ function parseExcelFile(buffer: ArrayBuffer, fileName: string, existingProducts:
       category,
       price: Math.round(price),
       unit: "un",
-      emoji: emojiByCategory[category] ?? "🛒",
+      emoji: emojiByCategory[category] ?? emojiByCategory[FALLBACK_CATEGORY],
       image: previous?.image,
       stock: Number.isFinite(stock) ? stock : undefined,
     });
   }
 
-  return { fileName, products: parsed, skipped };
+  return { fileName, products: parsed, skipped, keptCategories };
 }
 
 const SESSION_KEY = "laprevia-admin-session";
@@ -169,6 +180,14 @@ export default function AdminDashboard() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("missing");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<CategoryCounts>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkCategory, setBulkCategory] = useState<string>(categories[0].slug);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [isMovingSelection, setIsMovingSelection] = useState(false);
+  const [sortPreview, setSortPreview] = useState<SortPreview | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [withPhotoCount, setWithPhotoCount] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
@@ -205,6 +224,11 @@ export default function AdminDashboard() {
     } catch {
       // Counts are informational; a failure here must not block the dashboard.
     }
+    try {
+      setCategoryCounts(await fetchCategoryCounts());
+    } catch {
+      // Same: the section chips fall back to showing no number.
+    }
   }, []);
 
   const loadPage = useCallback(async () => {
@@ -213,6 +237,7 @@ export default function AdminDashboard() {
     try {
       const page = await fetchCatalogPage({
         query: debouncedQuery,
+        category: categoryFilter,
         photo: photoFilter,
         limit: PAGE_SIZE,
       });
@@ -228,12 +253,19 @@ export default function AdminDashboard() {
         const matches = products.filter((product) => {
           const matchesQuery = !normalizedQuery || normalize(`${product.name} ${product.id} ${product.code ?? ""}`).includes(normalizedQuery);
           const matchesPhoto = photoFilter === "all" || (photoFilter === "ready" ? Boolean(product.image) : !product.image);
-          return matchesQuery && matchesPhoto;
+          const matchesCategory = !categoryFilter || normalizeCategory(product.category) === categoryFilter;
+          return matchesQuery && matchesPhoto && matchesCategory;
         });
         setCatalog(matches.slice(0, PAGE_SIZE));
         setFilteredTotal(matches.length);
         setTotalCount(products.length);
         setWithPhotoCount(products.filter((product) => Boolean(product.image)).length);
+        const localCounts: CategoryCounts = {};
+        for (const product of products) {
+          const slug = normalizeCategory(product.category);
+          localCounts[slug] = (localCounts[slug] ?? 0) + 1;
+        }
+        setCategoryCounts(localCounts);
         setIsLocalMode(true);
         setNotice({ tone: "warning", text: "Modo local: el backend todavía no está conectado. Las fotos se previsualizan en esta sesión." });
       } catch {
@@ -243,11 +275,17 @@ export default function AdminDashboard() {
     } finally {
       if (id === requestId.current) setIsCatalogLoading(false);
     }
-  }, [debouncedQuery, photoFilter]);
+  }, [categoryFilter, debouncedQuery, photoFilter]);
 
   useEffect(() => {
     void loadPage();
   }, [loadPage]);
+
+  /** A product that moves out of the section on screen stops being visible,
+   *  so keeping it ticked would hide it from the count in the action bar. */
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [categoryFilter, debouncedQuery, photoFilter]);
 
   useEffect(() => {
     void refreshCounts();
@@ -259,6 +297,7 @@ export default function AdminDashboard() {
     try {
       const page = await fetchCatalogPage({
         query: debouncedQuery,
+        category: categoryFilter,
         photo: photoFilter,
         offset: catalog.length,
         limit: PAGE_SIZE,
@@ -275,6 +314,144 @@ export default function AdminDashboard() {
   const withPhoto = withPhotoCount;
   const withoutPhoto = Math.max(0, totalCount - withPhotoCount);
   const visibleProducts = catalog;
+  const selected = new Set(selectedIds);
+  const unsortedCount = categoryCounts[FALLBACK_CATEGORY] ?? 0;
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function selectAllVisible() {
+    const visibleIds = visibleProducts.map((product) => product.id);
+    const allTicked = visibleIds.every((id) => selected.has(id));
+    setSelectedIds(allTicked ? [] : visibleIds);
+  }
+
+  /** Shared by the per-card dropdown and the bulk bar. Both write only the
+   *  section, so nothing else about the product can change by accident. */
+  async function applyMoves(moves: CategoryMove[]): Promise<boolean> {
+    if (!moves.length) return false;
+    const movedIds = new Set(moves.map((move) => move.id));
+    const destination = new Map(moves.map((move) => [move.id, move.category]));
+
+    try {
+      const { response, moved, counts } = await moveProductsToCategories(moves, session);
+      if (!response.ok) throw apiFailure(response);
+      if (Object.keys(counts).length) setCategoryCounts(counts);
+      // While a section is being shown, a product that just left it no longer
+      // belongs on screen; otherwise it stays put with its new label.
+      setCatalog((current) =>
+        categoryFilter
+          ? current.filter((product) => !movedIds.has(product.id))
+          : current.map((product) =>
+              movedIds.has(product.id)
+                ? normalizeRemoteProduct({ ...product, category: destination.get(product.id) })
+                : product,
+            ),
+      );
+      if (categoryFilter) setFilteredTotal((current) => Math.max(0, current - moved));
+      setSelectedIds((current) => current.filter((id) => !movedIds.has(id)));
+      const target = categories.find((category) => category.slug === moves[0].category);
+      setNotice({
+        tone: "success",
+        text: moves.length === 1
+          ? `Listo: ${target?.label ?? moves[0].category} para ese producto.`
+          : `${moved.toLocaleString("es-AR")} productos movidos a ${target?.label ?? moves[0].category}.`,
+      });
+      return true;
+    } catch (error) {
+      if (failureKind(error) === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return false;
+      }
+      setNotice({ tone: "error", text: "No se pudo cambiar la sección. Probá de nuevo en un momento." });
+      return false;
+    }
+  }
+
+  async function changeProductCategory(product: Product, category: string) {
+    if (category === product.category) return;
+    setMovingId(product.id);
+    try {
+      await applyMoves([{ id: product.id, category }]);
+    } finally {
+      setMovingId(null);
+    }
+  }
+
+  async function moveSelection() {
+    if (!selectedIds.length) return;
+    setIsMovingSelection(true);
+    try {
+      await applyMoves(selectedIds.map((id) => ({ id, category: bulkCategory })));
+    } finally {
+      setIsMovingSelection(false);
+    }
+  }
+
+  /** Reads the whole catalog and proposes a section for every article still
+   *  sitting in the general drawer. Nothing is written until the shop
+   *  confirms, and articles already filed by hand are never touched. */
+  async function scanUnsorted() {
+    setIsScanning(true);
+    setSortPreview(null);
+    setNotice({ tone: "success", text: "Revisando el catálogo…" });
+    try {
+      const all = await fetchAllProducts();
+      const moves: CategoryMove[] = [];
+      const byCategory: Record<string, number> = {};
+      let scanned = 0;
+      for (const product of all) {
+        if (!isUnsorted(product.category)) continue;
+        scanned += 1;
+        const category = guessCategory(product.name);
+        if (category === FALLBACK_CATEGORY) continue;
+        moves.push({ id: product.id, category });
+        byCategory[category] = (byCategory[category] ?? 0) + 1;
+      }
+      setSortPreview({ moves, byCategory, scanned });
+      setNotice(
+        moves.length
+          ? { tone: "success", text: `${moves.length.toLocaleString("es-AR")} de ${scanned.toLocaleString("es-AR")} productos de Varios se pueden ubicar solos. Revisá y confirmá.` }
+          : { tone: "warning", text: "No se encontró nada para mover automáticamente. Podés ubicarlos a mano desde las tarjetas." },
+      );
+    } catch {
+      setNotice({ tone: "error", text: "No se pudo leer el catálogo completo para revisarlo." });
+    } finally {
+      setIsScanning(false);
+    }
+  }
+
+  async function applySortPreview() {
+    if (!sortPreview?.moves.length) return;
+    setIsScanning(true);
+    try {
+      // Sent in slices so a big first sweep does not exceed what one request
+      // is allowed to carry.
+      const CHUNK = 2000;
+      let moved = 0;
+      for (let index = 0; index < sortPreview.moves.length; index += CHUNK) {
+        const slice = sortPreview.moves.slice(index, index + CHUNK);
+        const { response, moved: count, counts } = await moveProductsToCategories(slice, session);
+        if (!response.ok) throw apiFailure(response);
+        if (Object.keys(counts).length) setCategoryCounts(counts);
+        moved += count;
+      }
+      setSortPreview(null);
+      await Promise.all([loadPage(), refreshCounts()]);
+      setNotice({ tone: "success", text: `${moved.toLocaleString("es-AR")} productos quedaron ubicados en su sección.` });
+    } catch (error) {
+      if (failureKind(error) === "unauthorized") {
+        handleLogout();
+        setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+        return;
+      }
+      setNotice({ tone: "error", text: "No se pudo guardar el reordenamiento." });
+    } finally {
+      setIsScanning(false);
+    }
+  }
 
   async function handleExcelChange(file: File | undefined) {
     if (!file) return;
@@ -559,7 +736,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink">Actualizar inventario</p>
               <h2 className="font-display mt-1 text-2xl">Subí el Excel de Codelector</h2>
-              <p className="mt-1 text-sm text-ink/60">La importación usa el ID como clave y conserva las fotos ya cargadas.</p>
+              <p className="mt-1 text-sm text-ink/60">La importación usa el ID como clave: actualiza precios y stock, y <strong>nunca borra las fotos ni la sección</strong> que ya tenía cada producto.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <label className="flex cursor-pointer items-center justify-center rounded-full border-[3px] border-ink bg-yellow px-5 py-3 text-center font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5">
@@ -573,10 +750,104 @@ export default function AdminDashboard() {
               <div>
                 <p className="font-extrabold">{preview.fileName}</p>
                 <p className="text-sm text-ink/60">{preview.products.length.toLocaleString("es-AR")} válidos · {preview.skipped} omitidos</p>
+                <p className="mt-1 text-sm font-bold text-teal-dark">🔒 {preview.keptCategories.toLocaleString("es-AR")} productos conservan su sección y su foto.</p>
               </div>
               <button type="button" onClick={confirmImport} disabled={isImporting} className="rounded-full border-2 border-ink bg-teal px-5 py-2.5 font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] disabled:opacity-50">
                 {isImporting ? "Guardando…" : "Confirmar actualización"}
               </button>
+            </div>
+          )}
+        </section>
+
+        <section className="mt-6 rounded-3xl border-[3px] border-ink bg-white p-5 shadow-[4px_4px_0_var(--color-ink)] sm:p-6">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink">Secciones del catálogo</p>
+              <h2 className="font-display mt-1 text-2xl">¿A qué sección va cada producto?</h2>
+              <p className="mt-1 max-w-xl text-sm text-ink/60">
+                Tocá una sección para ver solo esos productos. Cada tarjeta tiene un desplegable para cambiarla, o tildá varias y movelas todas juntas.
+              </p>
+              {unsortedCount > 0 && (
+                <p className="mt-2 text-sm font-bold text-ink/70">
+                  🛒 Quedan {unsortedCount.toLocaleString("es-AR")} productos en Varios esperando su sección.
+                </p>
+              )}
+            </div>
+            <button
+                type="button"
+                onClick={() => void scanUnsorted()}
+                disabled={isScanning || isLocalMode}
+                className="shrink-0 rounded-full border-[3px] border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
+              >
+                {isScanning ? "Revisando…" : "✨ Ubicar automáticamente"}
+              </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter(null)}
+              aria-pressed={categoryFilter === null}
+              className={`rounded-full border-2 border-ink px-3 py-2 text-sm font-extrabold transition ${categoryFilter === null ? "bg-ink text-cream" : "bg-cream text-ink hover:-translate-y-0.5"}`}
+            >
+              Todas · {totalCount.toLocaleString("es-AR")}
+            </button>
+            {categories.map((category) => {
+              const isActive = categoryFilter === category.slug;
+              return (
+                <button
+                  key={category.slug}
+                  type="button"
+                  onClick={() => setCategoryFilter(isActive ? null : category.slug)}
+                  aria-pressed={isActive}
+                  style={isActive ? { backgroundColor: category.color } : undefined}
+                  className={`rounded-full border-2 border-ink px-3 py-2 text-sm font-extrabold transition hover:-translate-y-0.5 ${isActive ? "text-white" : "bg-cream text-ink"}`}
+                >
+                  {category.emoji} {category.label} · {(categoryCounts[category.slug] ?? 0).toLocaleString("es-AR")}
+                </button>
+              );
+            })}
+          </div>
+
+          {sortPreview && (
+            <div className="mt-5 rounded-2xl border-2 border-dashed border-teal bg-teal/10 p-4">
+              <p className="font-extrabold">
+                Se revisaron {sortPreview.scanned.toLocaleString("es-AR")} productos de Varios.
+              </p>
+              {sortPreview.moves.length > 0 ? (
+                <>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {Object.entries(sortPreview.byCategory)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([slug, count]) => {
+                        const category = categories.find((item) => item.slug === slug);
+                        return (
+                          <li key={slug} className="rounded-full border-2 border-ink bg-white px-3 py-1.5 text-sm font-extrabold">
+                            {category?.emoji} {category?.label ?? slug} · {count.toLocaleString("es-AR")}
+                          </li>
+                        );
+                      })}
+                  </ul>
+                  <p className="mt-3 text-sm text-ink/60">
+                    Los {(sortPreview.scanned - sortPreview.moves.length).toLocaleString("es-AR")} restantes quedan en Varios para ubicarlos a mano. Esto no toca precios, stock ni fotos.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => void applySortPreview()}
+                      disabled={isScanning}
+                      className="rounded-full border-2 border-ink bg-teal px-5 py-2.5 font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] disabled:opacity-50"
+                    >
+                      {isScanning ? "Guardando…" : `Mover ${sortPreview.moves.length.toLocaleString("es-AR")} productos`}
+                    </button>
+                    <button type="button" onClick={() => setSortPreview(null)} disabled={isScanning} className="rounded-full border-2 border-ink bg-white px-5 py-2.5 font-extrabold disabled:opacity-50">
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-ink/60">No hay nada que se pueda ubicar solo. Movelos a mano desde cada tarjeta.</p>
+              )}
             </div>
           )}
         </section>
@@ -609,6 +880,23 @@ export default function AdminDashboard() {
 
           <p className="mt-3 text-sm font-bold text-ink/55">Mostrando {visibleProducts.length.toLocaleString("es-AR")} de {filteredTotal.toLocaleString("es-AR")}</p>
 
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={selectAllVisible}
+              disabled={!visibleProducts.length}
+              className="rounded-full border-2 border-ink bg-white px-3 py-2 text-xs font-extrabold transition hover:bg-yellow disabled:opacity-40"
+            >
+              {visibleProducts.length > 0 && visibleProducts.every((product) => selected.has(product.id)) ? "Destildar todo" : "Tildar los que se ven"}
+            </button>
+            {selectedIds.length > 0 && (
+              <button type="button" onClick={() => setSelectedIds([])} className="rounded-full border-2 border-ink bg-white px-3 py-2 text-xs font-extrabold transition hover:bg-yellow">
+                Limpiar selección
+              </button>
+            )}
+          </div>
+
+
           {isCatalogLoading && (
             <p className="mt-6 text-center text-sm font-bold text-ink/50" role="status">Cargando productos…</p>
           )}
@@ -616,18 +904,47 @@ export default function AdminDashboard() {
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
             {visibleProducts.map((product) => {
               const imageSrc = localPhotoUrls[product.id] ?? product.image;
+              const isTicked = selected.has(product.id);
+              const section = categories.find((category) => category.slug === product.category);
               return (
-                <article key={product.id} className="group relative flex min-w-0 flex-col rounded-3xl border-[3px] border-ink bg-white p-3 shadow-[4px_4px_0_var(--color-ink)] sm:p-4">
+                <article key={product.id} className={`group relative flex min-w-0 flex-col rounded-3xl border-[3px] bg-white p-3 shadow-[4px_4px_0_var(--color-ink)] sm:p-4 ${isTicked ? "border-pink" : "border-ink"}`}>
                   <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-cream-dark text-4xl sm:text-5xl">
                     {imageSrc ? <img src={imageSrc} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <span aria-hidden="true">{product.emoji}</span>}
                     {productHasPhoto(product, localPhotoUrls) && <span className="absolute right-2 top-2 rounded-full border-2 border-ink bg-teal px-2 py-1 text-xs font-black text-white">✓</span>}
+                    <label className="absolute left-2 top-2 flex cursor-pointer items-center gap-1 rounded-full border-2 border-ink bg-white px-2 py-1 text-xs font-extrabold">
+                      <input
+                        type="checkbox"
+                        checked={isTicked}
+                        onChange={() => toggleSelected(product.id)}
+                        className="h-4 w-4 accent-[var(--color-pink)]"
+                      />
+                      <span className="sr-only">Seleccionar {product.name}</span>
+                    </label>
                   </div>
                   <p className="mt-3 truncate text-[10px] font-extrabold uppercase tracking-widest text-ink/45">ID {product.id}</p>
                   <h3 className="mt-1 line-clamp-3 min-h-10 break-words font-display text-[13px] leading-tight min-[360px]:text-[15px] sm:text-lg" title={product.name}>{product.name}</h3>
                   <div className="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-ink/55"><span>{currency.format(product.price)}</span><span>{product.stock === undefined ? "—" : product.stock <= 0 ? "Sin stock" : `${product.stock} stock`}</span></div>
-                  {/* mt-auto keeps the photo/edit actions aligned across a row
-                      even when product names wrap to different line counts. */}
-                  <label className="mt-auto flex cursor-pointer items-center justify-center rounded-full border-2 border-ink bg-cream px-3 py-2 text-center text-xs font-extrabold transition hover:bg-yellow">
+                  {/* The section sits with the product, not behind the edit
+                      form: filing the catalog is a pass over many cards.
+                      mt-auto keeps this action stack aligned across a row even
+                      when product names wrap to different line counts. */}
+                  <label className="mt-auto block pt-3">
+                    <span className="sr-only">Sección de {product.name}</span>
+                    <select
+                      value={product.category}
+                      disabled={movingId === product.id}
+                      onChange={(event) => void changeProductCategory(product, event.target.value)}
+                      style={{ borderColor: section?.color ?? "var(--color-ink)" }}
+                      className="w-full truncate rounded-full border-2 bg-white px-3 py-2 text-xs font-extrabold outline-none focus:ring-4 focus:ring-pink/20 disabled:opacity-50"
+                    >
+                      {categories.map((category) => (
+                        <option key={category.slug} value={category.slug}>
+                          {category.emoji} {category.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="mt-2 flex cursor-pointer items-center justify-center rounded-full border-2 border-ink bg-cream px-3 py-2 text-center text-xs font-extrabold transition hover:bg-yellow">
                     {uploadingId === product.id ? "Guardando…" : productHasPhoto(product, localPhotoUrls) ? "Cambiar foto" : "Subir foto"}
                     <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploadingId === product.id} onChange={(event) => uploadPhoto(product, event.target.files?.[0])} />
                   </label>
@@ -647,6 +964,40 @@ export default function AdminDashboard() {
           )}
         </section>
       </main>
+
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[110] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 rounded-3xl border-[3px] border-ink bg-cream p-3 shadow-[5px_5px_0_var(--color-ink)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p className="shrink-0 px-1 font-extrabold">{selectedIds.length.toLocaleString("es-AR")} seleccionados</p>
+            {/* Destination and action share a row on phones so the bar stays
+                two lines tall instead of covering a fifth of the screen. */}
+            <div className="flex min-w-0 flex-1 gap-2">
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Sección de destino</span>
+                <select
+                  value={bulkCategory}
+                  onChange={(event) => setBulkCategory(event.target.value)}
+                  className="w-full rounded-full border-2 border-ink bg-white px-3 py-2.5 text-sm font-extrabold outline-none focus:ring-4 focus:ring-pink/20"
+                >
+                  {categories.map((category) => (
+                    <option key={category.slug} value={category.slug}>
+                      {category.emoji} {category.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => void moveSelection()}
+                disabled={isMovingSelection}
+                className="shrink-0 rounded-full border-2 border-ink bg-teal px-5 py-2.5 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] disabled:opacity-50"
+              >
+                {isMovingSelection ? "Moviendo…" : "Mover"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isProductFormOpen && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center bg-ink/60 p-0 backdrop-blur-sm sm:items-center sm:p-5">

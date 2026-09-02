@@ -1,3 +1,5 @@
+import { normalizeCategory } from "./categories.js";
+
 export type ProductPayload = {
   name: string;
   code: string | null;
@@ -17,7 +19,7 @@ export function parseProductPayload(body: unknown): ProductPayload | ProductPayl
     input.stock === "" || input.stock === null || input.stock === undefined
       ? null
       : Number(input.stock);
-  const category = String(input.category || "almacen").trim();
+  const category = normalizeCategory(input.category);
 
   if (!name) return { error: "Product name is required" };
   if (!Number.isFinite(price) || price < 0) return { error: "Price must be a valid non-negative number" };

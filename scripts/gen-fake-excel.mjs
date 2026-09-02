@@ -47,7 +47,7 @@ const bank = {
       "Caramelos importados ácidos", "Té helado importado"],
     unit: ["un", "paq"], price: [3200, 6800],
   },
-  almacen: {
+  varios: {
     names: ["Leche entera 1L", "Leche descremada 1L", "Mermelada de durazno", "Mermelada de frutilla",
       "Aceite de girasol 900ml", "Harina 0000 1kg", "Azúcar 1kg", "Yerba mate 1kg", "Café instantáneo 170g",
       "Té en saquitos x25", "Fideos guiseros 500g", "Arroz largo fino 1kg", "Polenta 500g", "Sal fina 500g",

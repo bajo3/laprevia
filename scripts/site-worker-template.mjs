@@ -7,7 +7,7 @@ const PRODUCT_SCHEMA = `CREATE TABLE IF NOT EXISTS products (
   cost REAL,
   price REAL NOT NULL DEFAULT 0,
   stock INTEGER,
-  category TEXT NOT NULL DEFAULT 'almacen',
+  category TEXT NOT NULL DEFAULT 'varios',
   active INTEGER NOT NULL DEFAULT 1,
   image_key TEXT,
   import_batch TEXT,
@@ -146,7 +146,7 @@ async function importProducts(request, env) {
         Number.isFinite(Number(product.cost)) ? Number(product.cost) : null,
         Number(product.price ?? 0),
         Number.isFinite(Number(product.stock)) ? Number(product.stock) : null,
-        String(product.category || "almacen"),
+        String(product.category || "varios"),
         importBatch,
         now,
       ),
@@ -165,7 +165,7 @@ function productPayload(body) {
   const code = String(body?.code ?? "").trim();
   const price = Number(body?.price);
   const stock = body?.stock === "" || body?.stock === null || body?.stock === undefined ? null : Number(body.stock);
-  const category = String(body?.category || "almacen").trim();
+  const category = String(body?.category || "varios").trim();
   if (!name) return { error: "Product name is required" };
   if (!Number.isFinite(price) || price < 0) return { error: "Price must be a valid non-negative number" };
   if (stock !== null && (!Number.isFinite(stock) || stock < 0)) return { error: "Stock must be a valid non-negative number" };

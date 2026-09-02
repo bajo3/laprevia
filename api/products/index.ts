@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "../_lib/supabase.js";
 import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
 import { isPayloadError, parseProductPayload, productImageUrl } from "../_lib/product.js";
+import { FALLBACK_CATEGORY, normalizeCategory } from "../_lib/categories.js";
 
 export const config = { runtime: "edge" };
 
@@ -40,7 +41,10 @@ async function listProducts(request: Request) {
     const like = `"%${escaped}%"`;
     builder = builder.or(`name.ilike.${like},id.ilike.${like},code.ilike.${like}`);
   }
-  if (category) builder = builder.eq("category", category);
+  // Rows written before a section was renamed still carry the old slug, so a
+  // request for the general drawer has to match both names.
+  if (category === FALLBACK_CATEGORY) builder = builder.in("category", [FALLBACK_CATEGORY, "almacen"]);
+  else if (category) builder = builder.eq("category", category);
 
   // The dashboard's core workflow is "show me what still needs a photo".
   // Filtering that in Postgres keeps it accurate across the whole catalog
@@ -60,7 +64,7 @@ async function listProducts(request: Request) {
       code: product.code || undefined,
       price: Number(product.price ?? 0),
       stock: product.stock === null ? undefined : Number(product.stock),
-      category: product.category,
+      category: normalizeCategory(product.category),
       unit: "un",
       image: productImageUrl(String(product.id), product.image_key as string | null),
     })),

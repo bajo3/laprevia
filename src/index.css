@@ -15,6 +15,9 @@
   --color-yellow: #ffc93c;
   --color-orange: #ff8a3d;
   --color-violet: #7c5cff;
+  /* Section chips paint white text on these, so both clear 4.5:1 on white. */
+  --color-violet-dark: #5a3fc0;
+  --color-blue: #2f6fed;
 }
 
 * {

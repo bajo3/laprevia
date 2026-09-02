@@ -1,22 +1,13 @@
 import type { Product } from "./products";
-
-const emojiByCategory: Record<string, string> = {
-  cotillon: "🎉",
-  snacks: "🍟",
-  golosinas: "🍬",
-  galletitas: "🍪",
-  helados: "🍦",
-  importados: "🌐",
-  almacen: "🛒",
-  regalos: "🎁",
-};
+import { emojiByCategory } from "./catalog-config";
+import { FALLBACK_CATEGORY, normalizeCategory } from "./categorize";
 
 /** Rows per request. Supabase/PostgREST caps a single response at 1000 rows,
  *  so the catalog is paged instead of fetched whole. */
 export const PAGE_SIZE = 48;
 
 export function normalizeRemoteProduct(value: Partial<Product>): Product {
-  const category = value.category ?? "almacen";
+  const category = normalizeCategory(value.category);
   return {
     id: String(value.id ?? ""),
     name: String(value.name ?? "Producto"),
@@ -24,7 +15,9 @@ export function normalizeRemoteProduct(value: Partial<Product>): Product {
     category,
     price: Number(value.price ?? 0),
     unit: value.unit ?? "un",
-    emoji: value.emoji ?? emojiByCategory[category] ?? "🛒",
+    // Derived from the section rather than read from the row: a product moved
+    // to another section has to change its placeholder with it.
+    emoji: emojiByCategory[category] ?? emojiByCategory[FALLBACK_CATEGORY],
     image: value.image,
     stock: value.stock === undefined ? undefined : Number(value.stock),
   };
@@ -96,4 +89,29 @@ export async function fetchBundledCatalog() {
   if (!response.ok) throw new Error("El catálogo local todavía no está disponible.");
   const products = (await response.json()) as Partial<Product>[];
   return products.map(normalizeRemoteProduct);
+}
+
+export type CategoryCounts = Record<string, number>;
+
+/** How many active products each section holds, straight from Postgres. */
+export async function fetchCategoryCounts(): Promise<CategoryCounts> {
+  const response = await fetch("/api/products/categories", { cache: "no-store" });
+  if (!response.ok) throw new Error("No se pudieron contar las secciones.");
+  const payload = (await response.json()) as { counts?: CategoryCounts };
+  return payload.counts ?? {};
+}
+
+export type CategoryMove = { id: string; category: string };
+
+/** Files a batch of products into their sections. Writes only `category`, so
+ *  prices, stock and photos are untouched. */
+export async function moveProductsToCategories(moves: CategoryMove[], token: string | null) {
+  const response = await fetch("/api/products/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ updates: moves }),
+  });
+  if (!response.ok) return { response, moved: 0, counts: {} as CategoryCounts };
+  const payload = (await response.json()) as { moved?: number; counts?: CategoryCounts };
+  return { response, moved: Number(payload.moved ?? 0), counts: payload.counts ?? {} };
 }

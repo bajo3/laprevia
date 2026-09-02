@@ -25,33 +25,44 @@ const PRODUCTS_INDEX_PATH = path.join(ROOT, "public", "productos-index.json");
 const PRODUCTS_DATA_PATH = path.join(ROOT, "public", "catalogo-data.json");
 const PHOTO_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
+// Espejo de src/data/catalog-config.ts y src/data/categorize.ts. Este script
+// corre en Node sin bundler, así que no puede importar los .ts del frontend:
+// al agregar o renombrar una sección hay que tocar los tres archivos.
 export const categories = [
   { slug: "cotillon", label: "Cotillón", emoji: "🎉", color: "var(--color-pink)" },
-  { slug: "snacks", label: "Snacks", emoji: "🍟", color: "var(--color-orange)" },
+  { slug: "reposteria", label: "Repostería", emoji: "🧁", color: "var(--color-teal-dark)" },
+  { slug: "descartables", label: "Descartables", emoji: "🥤", color: "var(--color-blue)" },
   { slug: "golosinas", label: "Golosinas", emoji: "🍬", color: "var(--color-violet)" },
+  { slug: "snacks", label: "Snacks", emoji: "🍟", color: "var(--color-orange)" },
   { slug: "galletitas", label: "Galletitas", emoji: "🍪", color: "var(--color-orange)" },
   { slug: "helados", label: "Helados", emoji: "🍦", color: "var(--color-teal)" },
+  { slug: "sahumerios", label: "Sahumerios", emoji: "🕯️", color: "var(--color-violet-dark)" },
   { slug: "importados", label: "Importados", emoji: "🌐", color: "var(--color-yellow)" },
-  { slug: "almacen", label: "Almacén", emoji: "🛒", color: "var(--color-teal-dark)" },
   { slug: "regalos", label: "Regalos", emoji: "🎁", color: "var(--color-pink-dark)" },
+  { slug: "varios", label: "Varios", emoji: "🛒", color: "var(--color-ink)" },
 ];
 const CATEGORY_SLUGS = categories.map((c) => c.slug);
+const FALLBACK_CATEGORY = "varios";
+// Secciones retiradas y su reemplazo, para que un category-map.json viejo siga sirviendo.
+const LEGACY_SLUGS = { almacen: FALLBACK_CATEGORY };
 
-// Palabras clave para auto-categorizar productos nuevos (se puede corregir a mano después en category-map.json)
+// Palabras clave para ubicar productos nuevos. Gana la primera regla que
+// coincide, y la comparación es por palabra entera: "molde" no matchea
+// "moldear" ni "copal" matchea "copa larga".
 const KEYWORD_RULES = [
-  { slug: "cotillon", words: ["globo", "guirnalda", "sombrero", "vela", "piñata", "pinata", "cotillon", "serpentina", "crepe", "mascara", "gorro", "vincha", "antifaz", "bomba de agua", "banderin", "confeti", "mantel descartable", "matraca", "vaso descartable", "plato descartable", "silbato"] },
-  { slug: "helados", words: ["helado", "sorbete", "polo", "palito de agua", "paleta de crema", "paleta helada"] },
-  { slug: "golosinas", words: ["chocolate", "gomita", "caramelo", "alfajor", "chicle", "turron", "oblea", "chupetin", "bombon", "golosina", "mentita", "toffee"] },
-  { slug: "galletitas", words: ["galletita", "galleta", "vainilla", "oreo"] },
-  { slug: "snacks", words: ["papas fritas", "papas rustica", "palitos salado", "nachos", "mani", "pochoclo", "snack", "pretzel", "chizito", "bastoncito de queso", "conito de queso", "rosita de maiz"] },
-  { slug: "importados", words: ["importado", "importada", "coreano", "japones", "chino"] },
-  { slug: "regalos", words: ["taza", "peluche", "bijou", "llavero", "regalo", "souvenir", "agenda", "cuaderno", "lapicera", "portarretrato", "manualidad"] },
+  { slug: "sahumerios", words: ["sahumerio", "sahumerios", "sahumito", "sahumitos", "sahumador", "saphirus", "aromanza", "sagrada madre", "darshan", "asoka", "satya", "goloka", "copal", "palo santo", "incienso", "inciensos", "difusor", "difusores", "diffuser", "home spray", "aromatizante", "perfumina", "perfuminas", "citronela", "citronella"] },
+  { slug: "reposteria", words: ["reposteria", "repostero", "repostera", "reposteros", "confiteria", "pirotin", "pirotines", "cortante", "cortantes", "cortador de masa", "molde", "moldes", "acetato", "tortera", "torteras", "aro para torta", "manga", "mangas", "cupla", "cuplas", "pico repostero", "picos reposteros", "espatula", "espatulas", "rodillo", "batidor", "tamiz", "termometro", "colorante", "colorantes", "fleibor", "pastelar", "ballina", "lodiser", "glase", "fondant", "chantilly", "cobertura", "banio de reposteria", "sprinkles", "granas", "grana", "confites comestibles", "comestible", "comestibles", "perlas comestibles", "dragea", "drageas", "premezcla", "polvo de hornear", "impalpable", "papel manteca", "savarin", "pionono", "merengue", "cake topper", "cake toppers", "cupcake", "cupcakes", "cup cake", "disco carton", "discos carton", "blonda", "blondas", "placa huevo", "placas huevo", "huevo de pascua", "huevos de pascua", "parpen", "shagcake", "baking", "flor de azucar", "flor azucar", "flores de azucar", "azucar impalpable"] },
+  { slug: "descartables", words: ["descartable", "descartables", "roticera", "tarrina", "tarrinas", "pote telgopor", "bandeja telgopor", "vaso telgopor", "plato telgopor", "bandeja termica", "bandeja termico", "envase termico", "bolsa polipropileno", "papel freidora", "papel antiadherente", "papel aluminio", "rollo film", "sorbete descartable", "bombilla descartable", "vaso plastico", "vasos plasticos", "plato plastico", "platos plasticos"] },
+  { slug: "cotillon", words: ["globo", "globos", "guirnalda", "guirnaldas", "vincha", "vinchas", "cotillon", "pinata", "disfraz", "disfraces", "antifaz", "antifaces", "confeti", "serpentina", "matraca", "banderin", "banderines", "mantel", "manteles", "servilleta", "servilletas", "carioca", "velon", "velones", "vela de cumpleanos", "velitas", "anteojo", "anteojos", "peluca", "pelucas", "maquillaje", "corona", "coronas"] },
+  { slug: "helados", words: ["helado", "helados", "sorbete", "sorbetes", "paleta helada", "palito de agua"] },
+  { slug: "golosinas", words: ["chocolate", "chocolates", "gomita", "gomitas", "caramelo", "caramelos", "alfajor", "alfajores", "chicle", "chicles", "turron", "turrones", "oblea", "obleas", "chupetin", "chupetines", "bombon", "bombones", "golosina", "golosinas", "regaliz", "marshmallow", "marshmallows", "mogul"] },
+  { slug: "galletitas", words: ["galletita", "galletitas", "galleta", "galletas", "vainillas", "oreo"] },
+  { slug: "snacks", words: ["papas fritas", "nachos", "mani", "manies", "pochoclo", "pochoclos", "snack", "snacks", "chizito", "chizitos", "palitos salados", "pretzel"] },
+  { slug: "importados", words: ["importado", "importada", "importados", "coreano", "japones", "chino"] },
+  { slug: "regalos", words: ["taza", "tazas", "peluche", "peluches", "bijou", "llavero", "llaveros", "regalo", "regalos", "souvenir", "souvenirs", "agenda", "agendas", "cuaderno", "cuadernos", "lapicera", "lapiceras", "portarretrato"] },
 ];
 
-const EMOJI_BY_CATEGORY = {
-  cotillon: "🎉", snacks: "🍟", golosinas: "🍬", galletitas: "🍪",
-  helados: "🍦", importados: "🌐", almacen: "🛒", regalos: "🎁",
-};
+const EMOJI_BY_CATEGORY = Object.fromEntries(categories.map((c) => [c.slug, c.emoji]));
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -102,12 +113,16 @@ const findKey = (row, candidates) => {
   return keys.find((k) => candidates.includes(normalize(k))) ?? null;
 };
 
+const escapeWord = (word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const matchesWord = (haystack, word) =>
+  new RegExp(`(^|[^a-z0-9])${escapeWord(word)}([^a-z0-9]|$)`).test(haystack);
+
 const guessCategory = (name) => {
   const n = normalize(name);
   for (const rule of KEYWORD_RULES) {
-    if (rule.words.some((w) => n.includes(w))) return rule.slug;
+    if (rule.words.some((w) => matchesWord(n, w))) return rule.slug;
   }
-  return "almacen";
+  return FALLBACK_CATEGORY;
 };
 
 const findPhoto = (id) => {
@@ -161,12 +176,15 @@ for (const row of rows) {
     continue;
   }
 
-  let category = categoryMap[id];
-  if (!category || !CATEGORY_SLUGS.includes(category)) {
+  // Un id mapeado al cajón general no aporta información: la mayoría del mapa
+  // viene de antes de que existieran las secciones nuevas, así que se vuelve a
+  // adivinar. Una sección real guardada a mano sí se respeta.
+  let category = LEGACY_SLUGS[categoryMap[id]] ?? categoryMap[id];
+  if (!category || category === FALLBACK_CATEGORY || !CATEGORY_SLUGS.includes(category)) {
     category = guessCategory(name);
-    categoryMap[id] = category;
     newlyGuessed.push({ id, name, category });
   }
+  categoryMap[id] = category;
 
   const image = findPhoto(id);
   if (!image) missingPhotos.push({ id, name });
@@ -178,7 +196,7 @@ for (const row of rows) {
     category,
     price: Math.round(price),
     unit: "un",
-    emoji: EMOJI_BY_CATEGORY[category] ?? "🛒",
+    emoji: EMOJI_BY_CATEGORY[category] ?? EMOJI_BY_CATEGORY[FALLBACK_CATEGORY],
     ...(image ? { image } : {}),
     ...(Number.isFinite(stock) ? { stock } : {}),
   });
