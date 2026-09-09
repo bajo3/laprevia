@@ -1,4 +1,4 @@
-const WHATSAPP_URL = "https://wa.me/c/5492494009317";
+import { WHATSAPP_CATALOG_URL } from "../data/site-config";
 
 type HeaderProps = {
   cartCount: number;
@@ -26,7 +26,7 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
 
         <div className="flex items-center gap-2">
           <a
-            href={WHATSAPP_URL}
+            href={WHATSAPP_CATALOG_URL}
             target="_blank"
             rel="noreferrer"
             className="hidden rounded-full bg-teal px-4 py-2 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0_var(--color-ink)] sm:block"
@@ -37,7 +37,11 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
             type="button"
             onClick={onCartOpen}
             className="relative flex h-11 items-center justify-center gap-1.5 rounded-full border-2 border-ink bg-yellow px-4 text-sm font-extrabold text-ink shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
-            aria-label={`Abrir carrito con ${cartCount} unidades`}
+            aria-label={
+              cartCount === 0
+                ? "Abrir carrito, está vacío"
+                : `Abrir carrito con ${cartCount} ${cartCount === 1 ? "unidad" : "unidades"}`
+            }
           >
             <span aria-hidden="true">🛒</span>
             <span className="hidden sm:inline">Carrito</span>

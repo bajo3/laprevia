@@ -43,8 +43,19 @@ export default function ProductCard({
         </span>
       )}
 
+      {/* aspect-square instead of a fixed pixel height: with h-28/h-32 the box
+          stayed exactly as tall no matter how many columns the grid had, so
+          its width — and with it the crop ratio — kept changing with every
+          breakpoint: 1.15:1 at 2 columns on a phone, 1.61:1 at 4 columns on
+          desktop. Almost every real photo in the catalog is portrait (a phone
+          held vertically over the product, 480×640), so object-cover on that
+          widening box was cropping away more and more of the photo's height
+          as the screen got wider — over half of it gone at desktop width,
+          which is what left products looking like a sliver of background with
+          the item barely in frame. A square box holds one ratio at every
+          width, so the crop stays the same modest amount everywhere. */}
       <div
-        className="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-2xl text-5xl sm:h-32"
+        className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl text-5xl"
         style={{ backgroundColor: `color-mix(in srgb, ${category?.color ?? "var(--color-pink)"} 18%, white)` }}
       >
         {!imageSrc && <span aria-hidden="true">{product.emoji}</span>}
@@ -118,9 +129,12 @@ export default function ProductCard({
           <button
             type="button"
             onClick={() => onChangeQuantity(product, 1)}
+            // Without the product name a screen reader announces forty-eight
+            // identical "Agregar" buttons with nothing to tell them apart.
+            aria-label={`Agregar ${product.name} al carrito`}
             className="flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-ink bg-pink px-2 text-sm font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 sm:px-4 sm:text-base"
           >
-            ＋ Agregar
+            <span aria-hidden="true">＋ Agregar</span>
           </button>
         )}
       </div>

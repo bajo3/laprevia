@@ -8,7 +8,8 @@ import { CartDrawer } from "./components/CartDrawer";
 import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
 import { categories } from "./data/catalog-config";
-import { fetchBundledCatalog, fetchCatalogPage, PAGE_SIZE } from "./data/catalog-api";
+import { fetchCatalogPage } from "./data/catalog-api";
+import { WHATSAPP_CHAT_URL } from "./data/site-config";
 import type { Product } from "./data/products";
 
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
@@ -19,26 +20,41 @@ const currency = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 0,
 });
 
-const normalizeSearch = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
-
 /** The cart keeps a snapshot of each product. Results are paged now, so a
  *  product in the cart is often no longer in the page on screen — deriving the
- *  cart from the visible list would silently drop those lines. */
-type CartEntry = { product: Product; quantity: number };
+ *  cart from the visible list would silently drop those lines.
+ *
+ *  `addedAt` exists because the cart is keyed by product id, and those ids are
+ *  numeric strings ("3204869"). JavaScript orders integer-like keys
+ *  numerically, so `Object.values` handed back the lines sorted by id rather
+ *  than in the order the shopper built the order. */
+type CartEntry = { product: Product; quantity: number; addedAt: number };
 
-function matchesLocally(product: Product, query: string, category: string | null) {
-  const normalizedQuery = normalizeSearch(query.trim());
-  const matchesCategory = !category || product.category === category;
-  const matchesSearch =
-    !normalizedQuery ||
-    normalizeSearch(product.name).includes(normalizedQuery) ||
-    product.id.includes(normalizedQuery) ||
-    normalizeSearch(product.code ?? "").includes(normalizedQuery);
-  return matchesCategory && matchesSearch;
+const CART_KEY = "laprevia-carrito";
+/** A cart older than this is dropped rather than restored: prices move with
+ *  every price list, and reviving a week-old order would show numbers the shop
+ *  can no longer honour. */
+const CART_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+
+type StoredCart = { savedAt: number; entries: CartEntry[] };
+
+function readStoredCart(): Record<string, CartEntry> {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as StoredCart;
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CART_MAX_AGE_MS) return {};
+    const restored: Record<string, CartEntry> = {};
+    for (const entry of parsed.entries ?? []) {
+      if (!entry?.product?.id || !(entry.quantity > 0)) continue;
+      restored[entry.product.id] = entry;
+    }
+    return restored;
+  } catch {
+    // A private window, cleared storage or a half-written value: start empty
+    // rather than break the catalog over a convenience feature.
+    return {};
+  }
 }
 
 function PublicCatalog() {
@@ -49,12 +65,10 @@ function PublicCatalog() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [cart, setCart] = useState<Record<string, CartEntry>>({});
+  const [cart, setCart] = useState<Record<string, CartEntry>>(readStoredCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
 
-  /** Populated only when the API is unreachable: the whole bundled catalog is
-   *  held in memory and filtered in the browser, as before. */
-  const fallbackCatalog = useRef<Product[] | null>(null);
   /** Guards against a slow earlier request overwriting a newer one. */
   const requestId = useRef(0);
 
@@ -63,36 +77,31 @@ function PublicCatalog() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  /** Survives a reload and, on a phone, the trip out to WhatsApp and back. */
+  useEffect(() => {
+    try {
+      const entries = Object.values(cart);
+      if (!entries.length) localStorage.removeItem(CART_KEY);
+      else localStorage.setItem(CART_KEY, JSON.stringify({ savedAt: Date.now(), entries } satisfies StoredCart));
+    } catch {
+      // Storage can be unavailable or full; the cart still works in memory.
+    }
+  }, [cart]);
+
   const loadFirstPage = useCallback(async () => {
     const id = ++requestId.current;
     setIsCatalogLoading(true);
-
-    const applyFallback = (all: Product[]) => {
-      const matches = all.filter((product) => matchesLocally(product, debouncedQuery, activeCategory));
-      if (id !== requestId.current) return;
-      setProducts(matches.slice(0, PAGE_SIZE));
-      setTotal(matches.length);
-    };
-
     try {
-      if (fallbackCatalog.current) {
-        applyFallback(fallbackCatalog.current);
-        return;
-      }
       const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory });
       if (id !== requestId.current) return;
       setProducts(page.products);
       setTotal(page.total);
+      setHasLoadError(false);
     } catch {
-      try {
-        const all = fallbackCatalog.current ?? (await fetchBundledCatalog());
-        fallbackCatalog.current = all;
-        applyFallback(all);
-      } catch {
-        if (id !== requestId.current) return;
-        setProducts([]);
-        setTotal(0);
-      }
+      if (id !== requestId.current) return;
+      setProducts([]);
+      setTotal(0);
+      setHasLoadError(true);
     } finally {
       if (id === requestId.current) setIsCatalogLoading(false);
     }
@@ -107,16 +116,9 @@ function PublicCatalog() {
     setIsLoadingMore(true);
     const offset = products.length;
     try {
-      if (fallbackCatalog.current) {
-        const matches = fallbackCatalog.current.filter((product) =>
-          matchesLocally(product, debouncedQuery, activeCategory),
-        );
-        setProducts(matches.slice(0, offset + PAGE_SIZE));
-      } else {
-        const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, offset });
-        setProducts((current) => [...current, ...page.products]);
-        setTotal(page.total);
-      }
+      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, offset });
+      setProducts((current) => [...current, ...page.products]);
+      setTotal(page.total);
     } catch {
       // Keep what is already on screen; the button stays available to retry.
     } finally {
@@ -124,7 +126,12 @@ function PublicCatalog() {
     }
   }, [activeCategory, debouncedQuery, isLoadingMore, products.length]);
 
-  const cartLines = useMemo(() => Object.values(cart), [cart]);
+  /** Sorted by when each line was added, because the object's own key order is
+   *  numeric — see the note on CartEntry. */
+  const cartLines = useMemo(
+    () => Object.values(cart).sort((a, b) => a.addedAt - b.addedAt),
+    [cart],
+  );
 
   const quantities = useMemo(() => {
     const map: Record<string, number> = {};
@@ -144,7 +151,8 @@ function PublicCatalog() {
 
   const changeQuantity = useCallback((product: Product, delta: number) => {
     setCart((current) => {
-      const currentQuantity = current[product.id]?.quantity ?? 0;
+      const existing = current[product.id];
+      const currentQuantity = existing?.quantity ?? 0;
       // No stock ceiling: the catalog does not publish stock, so silently
       // refusing to increment would be unexplainable to the shopper. The shop
       // confirms availability when the WhatsApp order arrives.
@@ -156,7 +164,22 @@ function PublicCatalog() {
         return nextCart;
       }
 
-      return { ...current, [product.id]: { product, quantity: nextQuantity } };
+      // Two taps inside the same millisecond would otherwise tie, and a tie
+      // falls back to the object's numeric key order — the very thing this
+      // field exists to avoid. Stepping past the highest position in use keeps
+      // every line strictly ordered.
+      const lastPosition = Object.values(current).reduce((max, line) => Math.max(max, line.addedAt), 0);
+
+      return {
+        ...current,
+        // A line keeps the position it was given when it first went in, so
+        // changing a quantity does not shuffle the order around.
+        [product.id]: {
+          product,
+          quantity: nextQuantity,
+          addedAt: existing?.addedAt ?? Math.max(Date.now(), lastPosition + 1),
+        },
+      };
     });
   }, []);
 
@@ -181,17 +204,53 @@ function PublicCatalog() {
           onQueryChange={setQuery}
         />
         <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
-        <ProductGrid
-          products={products}
-          categories={categories}
-          quantities={quantities}
-          onChangeQuantity={changeQuantity}
-          isLoading={isCatalogLoading}
-          isLoadingMore={isLoadingMore}
-          hasMore={products.length < total}
-          totalCount={total}
-          onLoadMore={loadMore}
-        />
+
+        {/* Says so plainly instead of quietly serving a saved copy: the prices
+            in one of those copies go stale, and a wrong wholesale price is an
+            argument at the counter. */}
+        {hasLoadError && !isCatalogLoading && (
+          <div className="mx-auto max-w-2xl px-5 pb-10" role="alert">
+            <div className="rounded-3xl border-[3px] border-ink bg-white p-6 text-center shadow-[4px_4px_0_var(--color-ink)]">
+              <p className="text-4xl" aria-hidden="true">📡</p>
+              <p className="font-display mt-3 text-2xl">No pudimos cargar el catálogo</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-ink/60">
+                Puede ser un problema momentáneo. Probá de nuevo en un minuto, o escribinos
+                y te pasamos precios y disponibilidad al toque.
+              </p>
+              <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void loadFirstPage()}
+                  className="rounded-full border-2 border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+                >
+                  Reintentar
+                </button>
+                <a
+                  href={WHATSAPP_CHAT_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border-2 border-ink bg-teal px-5 py-3 font-extrabold text-white shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+                >
+                  Escribinos por WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!hasLoadError && (
+          <ProductGrid
+            products={products}
+            categories={categories}
+            quantities={quantities}
+            onChangeQuantity={changeQuantity}
+            isLoading={isCatalogLoading}
+            isLoadingMore={isLoadingMore}
+            hasMore={products.length < total}
+            totalCount={total}
+            onLoadMore={loadMore}
+          />
+        )}
         <InfoTicket />
       </main>
       <Footer hasFloatingBar={cartCount > 0} />
@@ -201,7 +260,7 @@ function PublicCatalog() {
           type="button"
           onClick={openCart}
           className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center justify-between gap-3 rounded-full border-[3px] border-ink bg-yellow px-5 py-3 text-ink shadow-[5px_5px_0_var(--color-ink)] transition hover:-translate-y-1 hover:shadow-[7px_7px_0_var(--color-ink)] sm:left-auto sm:right-6 sm:w-auto sm:translate-x-0"
-          aria-label={`Abrir carrito con ${cartCount} unidades`}
+          aria-label={`Abrir carrito con ${cartCount} ${cartCount === 1 ? "unidad" : "unidades"}, total ${currency.format(cartTotal)}`}
         >
           <span className="truncate font-extrabold">🛒 Ver carrito · {cartCount}</span>
           <span className="shrink-0 font-display text-xl">{currency.format(cartTotal)}</span>
@@ -219,8 +278,14 @@ function PublicCatalog() {
   );
 }
 
+/** Only /admin and paths under it, not everything that merely starts with
+ *  those letters — "/administracion" was opening the panel too. */
+function isAdminRoute(pathname: string) {
+  return pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
 function App() {
-  return window.location.pathname.startsWith("/admin") ? (
+  return isAdminRoute(window.location.pathname) ? (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-cream p-6 text-center"><p className="font-display text-3xl">Cargando panel…</p></div>}>
       <AdminDashboard />
     </Suspense>

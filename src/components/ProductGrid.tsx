@@ -29,7 +29,9 @@ type ProductGridProps = {
 function ProductSkeleton() {
   return (
     <div className="animate-pulse rounded-3xl border-[3px] border-ink/25 bg-white p-3 sm:p-5">
-      <div className="h-28 w-full rounded-2xl bg-cream-dark sm:h-32" />
+      {/* Matches ProductCard's real image box (aspect-square) so the page does
+          not jump in height once the photo replaces the skeleton. */}
+      <div className="aspect-square w-full rounded-2xl bg-cream-dark" />
       <div className="mt-3 h-2.5 w-1/2 rounded-full bg-cream-dark" />
       <div className="mt-2 h-3.5 w-full rounded-full bg-cream-dark" />
       <div className="mt-1.5 h-3.5 w-4/5 rounded-full bg-cream-dark" />

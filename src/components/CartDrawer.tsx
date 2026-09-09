@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../data/products";
 
-const WHATSAPP_NUMBER = "5492494009317";
+import { whatsappOrderUrl } from "../data/site-config";
 
 const currency = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
   maximumFractionDigits: 0,
 });
+
+/** The order travels inside the wa.me URL, and a wholesale order is exactly
+ *  the kind that gets long: three lines already came to 944 characters, and
+ *  forty would land near 14.000, where Android's WhatsApp intent and some
+ *  browsers start truncating. Past this many lines the message carries the
+ *  totals and asks the shop to confirm the rest, instead of arriving cut in
+ *  half at an arbitrary product. */
+const MAX_LINES_IN_MESSAGE = 25;
 
 type CartLine = {
   product: Product;
@@ -23,21 +31,27 @@ type CartDrawerProps = {
 };
 
 function buildWhatsAppMessage(lines: CartLine[], total: number, unitCount: number) {
-  const productLines = lines
+  const shown = lines.slice(0, MAX_LINES_IN_MESSAGE);
+  const hidden = lines.length - shown.length;
+
+  // One line per product rather than two, and no rules made of box-drawing
+  // characters: each of those weighed three bytes once URL-encoded, which is
+  // budget spent on decoration instead of on the order itself.
+  const productLines = shown
     .map(
       ({ product, quantity }, index) =>
-        `${index + 1}. *${product.name}*\n` +
-        `   ${quantity} × ${currency.format(product.price)} — *${currency.format(product.price * quantity)}*`,
+        `${index + 1}. ${product.name} — ${quantity} × ${currency.format(product.price)} = *${currency.format(product.price * quantity)}*`,
     )
-    .join("\n\n");
+    .join("\n");
 
   return [
     "¡Hola! Quiero hacer este pedido en *La Previa* 🎉",
     "",
-    "🛒 *MI PEDIDO*",
-    "━━━━━━━━━━━━━━━━",
     productLines,
-    "━━━━━━━━━━━━━━━━",
+    ...(hidden > 0
+      ? ["", `…y ${hidden} ${hidden === 1 ? "producto más" : "productos más"}, que les paso apenas me respondan.`]
+      : []),
+    "",
     `📦 ${lines.length} ${lines.length === 1 ? "producto" : "productos"} · ${unitCount} ${unitCount === 1 ? "unidad" : "unidades"}`,
     `💰 *TOTAL: ${currency.format(total)}*`,
     "",
@@ -66,10 +80,7 @@ export function CartDrawer({
   const unitCount = lines.reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
   const whatsappUrl = useMemo(
-    () =>
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-        buildWhatsAppMessage(lines, total, unitCount),
-      )}`,
+    () => whatsappOrderUrl(buildWhatsAppMessage(lines, total, unitCount)),
     [lines, total, unitCount],
   );
 
@@ -216,6 +227,12 @@ export function CartDrawer({
                 <p className="mt-2 text-xs text-cream/55">
                   El negocio confirmará stock, precio final y forma de pago.
                 </p>
+                {lines.length > MAX_LINES_IN_MESSAGE && (
+                  <p className="mt-2 text-xs font-bold text-yellow">
+                    El mensaje lleva los primeros {MAX_LINES_IN_MESSAGE} productos y el total
+                    de los {lines.length}. El resto se lo pasás por chat.
+                  </p>
+                )}
               </div>
 
               <a

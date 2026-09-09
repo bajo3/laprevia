@@ -31,6 +31,9 @@ export type CatalogQuery = {
   photo?: PhotoFilter;
   offset?: number;
   limit?: number;
+  /** Skips the edge cache. The panel sets it so a page reloaded right after an
+   *  edit never shows the copy the CDN was still holding. */
+  fresh?: boolean;
 };
 
 export type CatalogPage = {
@@ -46,11 +49,13 @@ export async function fetchCatalogPage({
   photo = "all",
   offset = 0,
   limit = PAGE_SIZE,
+  fresh = false,
 }: CatalogQuery = {}): Promise<CatalogPage> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (query.trim()) params.set("q", query.trim());
   if (category) params.set("category", category);
   if (photo !== "all") params.set("photo", photo);
+  if (fresh) params.set("fresh", "1");
 
   const response = await fetch(`/api/products?${params}`, { cache: "no-store" });
   if (!response.ok) throw new Error("El catálogo remoto todavía no está disponible.");
@@ -73,7 +78,7 @@ export async function fetchAllProducts(
   let total = 0;
 
   do {
-    const page = await fetchCatalogPage({ offset, limit: BATCH });
+    const page = await fetchCatalogPage({ offset, limit: BATCH, fresh: true });
     total = page.total;
     all.push(...page.products);
     onProgress?.(all.length, total);
@@ -84,18 +89,22 @@ export async function fetchAllProducts(
   return all;
 }
 
-export async function fetchBundledCatalog() {
-  const response = await fetch("/catalogo-data.json", { cache: "no-store" });
-  if (!response.ok) throw new Error("El catálogo local todavía no está disponible.");
-  const products = (await response.json()) as Partial<Product>[];
-  return products.map(normalizeRemoteProduct);
-}
+/* The bundled `catalogo-data.json` fallback was removed on purpose.
+ *
+ * It was a 3 MB copy of the catalog, served whenever the API hiccupped. Two
+ * problems: it was regenerated only by a local script that stopped being used
+ * once imports moved into the panel, so it drifted silently; and when it did
+ * kick in, the shopper saw month-old prices with nothing telling them so. A
+ * wholesale price that is quietly wrong is worse than no price — it turns into
+ * an argument at the counter. The catalog now says plainly that it could not
+ * load and offers WhatsApp, which is what the shop can actually honour. */
 
 export type CategoryCounts = Record<string, number>;
 
 /** How many active products each section holds, straight from Postgres. */
 export async function fetchCategoryCounts(): Promise<CategoryCounts> {
   const response = await fetch("/api/products/categories", { cache: "no-store" });
+  if (response.status === 401 || response.status === 403) throw new Error("Sesión no válida.");
   if (!response.ok) throw new Error("No se pudieron contar las secciones.");
   const payload = (await response.json()) as { counts?: CategoryCounts };
   return payload.counts ?? {};

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminLogin from "./AdminLogin";
 import { compressImage } from "./compress-image";
-import * as XLSX from "xlsx";
 import categoryMap from "../data/category-map.json";
 import { categories, emojiByCategory } from "../data/catalog-config";
 import { FALLBACK_CATEGORY, guessCategory, isUnsorted, normalizeCategory } from "../data/categorize";
 import {
   fetchAllProducts,
-  fetchBundledCatalog,
   fetchCatalogPage,
   fetchCategoryCounts,
   moveProductsToCategories,
@@ -107,7 +105,14 @@ function findColumn(row: Record<string, unknown>, candidates: string[]) {
   return Object.keys(row).find((key) => candidates.includes(normalize(key)));
 }
 
-function parseExcelFile(buffer: ArrayBuffer, fileName: string, existingProducts: Product[]): ImportPreview {
+/** SheetJS is a quarter of a megabyte and only matters once someone picks a
+ *  file, so it is fetched at that moment rather than shipped with the panel. */
+async function parseExcelFile(
+  buffer: ArrayBuffer,
+  fileName: string,
+  existingProducts: Product[],
+): Promise<ImportPreview> {
+  const XLSX = await import("xlsx");
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
@@ -193,7 +198,7 @@ export default function AdminDashboard() {
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(false);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const requestId = useRef(0);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "warning" | "error"; text: string } | null>(null);
@@ -216,7 +221,7 @@ export default function AdminDashboard() {
   const refreshCounts = useCallback(async () => {
     try {
       const [all, ready] = await Promise.all([
-        fetchCatalogPage({ limit: 1 }),
+        fetchCatalogPage({ limit: 1, fresh: true }),
         fetchCatalogPage({ limit: 1, photo: "ready" }),
       ]);
       setTotalCount(all.total);
@@ -231,6 +236,9 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  /** No offline fallback here either. The panel exists to write to the
+   *  database; showing a saved copy of the catalog when the database is
+   *  unreachable invited edits that were never going to be saved. */
   const loadPage = useCallback(async () => {
     const id = ++requestId.current;
     setIsCatalogLoading(true);
@@ -240,38 +248,18 @@ export default function AdminDashboard() {
         category: categoryFilter,
         photo: photoFilter,
         limit: PAGE_SIZE,
+        fresh: true,
       });
       if (id !== requestId.current) return;
       setCatalog(page.products);
       setFilteredTotal(page.total);
-      setIsLocalMode(false);
+      setHasLoadError(false);
     } catch {
-      try {
-        const products = await fetchBundledCatalog();
-        if (id !== requestId.current) return;
-        const normalizedQuery = normalize(debouncedQuery);
-        const matches = products.filter((product) => {
-          const matchesQuery = !normalizedQuery || normalize(`${product.name} ${product.id} ${product.code ?? ""}`).includes(normalizedQuery);
-          const matchesPhoto = photoFilter === "all" || (photoFilter === "ready" ? Boolean(product.image) : !product.image);
-          const matchesCategory = !categoryFilter || normalizeCategory(product.category) === categoryFilter;
-          return matchesQuery && matchesPhoto && matchesCategory;
-        });
-        setCatalog(matches.slice(0, PAGE_SIZE));
-        setFilteredTotal(matches.length);
-        setTotalCount(products.length);
-        setWithPhotoCount(products.filter((product) => Boolean(product.image)).length);
-        const localCounts: CategoryCounts = {};
-        for (const product of products) {
-          const slug = normalizeCategory(product.category);
-          localCounts[slug] = (localCounts[slug] ?? 0) + 1;
-        }
-        setCategoryCounts(localCounts);
-        setIsLocalMode(true);
-        setNotice({ tone: "warning", text: "Modo local: el backend todavía no está conectado. Las fotos se previsualizan en esta sesión." });
-      } catch {
-        if (id !== requestId.current) return;
-        setNotice({ tone: "error", text: "No se pudo cargar el catálogo." });
-      }
+      if (id !== requestId.current) return;
+      setCatalog([]);
+      setFilteredTotal(0);
+      setHasLoadError(true);
+      setNotice({ tone: "error", text: "No se pudo cargar el catálogo. Revisá la conexión y probá de nuevo." });
     } finally {
       if (id === requestId.current) setIsCatalogLoading(false);
     }
@@ -292,7 +280,7 @@ export default function AdminDashboard() {
   }, [refreshCounts]);
 
   async function loadMore() {
-    if (isLoadingMore || isLocalMode) return;
+    if (isLoadingMore || hasLoadError) return;
     setIsLoadingMore(true);
     try {
       const page = await fetchCatalogPage({
@@ -466,7 +454,7 @@ export default function AdminDashboard() {
       } catch {
         existing = catalog;
       }
-      const nextPreview = parseExcelFile(await file.arrayBuffer(), file.name, existing);
+      const nextPreview = await parseExcelFile(await file.arrayBuffer(), file.name, existing);
       setPreview(nextPreview);
       setNotice({ tone: "success", text: `${nextPreview.products.length.toLocaleString("es-AR")} productos listos para revisar.` });
     } catch (error) {
@@ -776,7 +764,7 @@ export default function AdminDashboard() {
             <button
                 type="button"
                 onClick={() => void scanUnsorted()}
-                disabled={isScanning || isLocalMode}
+                disabled={isScanning || hasLoadError}
                 className="shrink-0 rounded-full border-[3px] border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
               >
                 {isScanning ? "Revisando…" : "✨ Ubicar automáticamente"}
