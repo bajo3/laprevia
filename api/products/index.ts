@@ -3,8 +3,19 @@ import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
 import { isPayloadError, parseProductPayload, productImageUrl } from "../_lib/product.js";
 import { FALLBACK_CATEGORY, normalizeCategory } from "../_lib/categories.js";
+import { searchFilterGroups } from "../_lib/search.js";
 
 export const config = { runtime: "edge" };
+
+/** The public catalog changes when a price list is imported, not by the
+ *  minute, so there is no reason for every visitor to wake the function. One
+ *  minute of edge caching plus a day of stale-while-revalidate means the first
+ *  visitor after an import pays the round trip and nobody else does — which is
+ *  what removes the 3,3 s cold start the shop was seeing on a quiet morning.
+ *
+ *  Only responses that anyone may see are cached. The dashboard's own views
+ *  (the photo filter) stay uncached so an edit is visible immediately. */
+const PUBLIC_CACHE = "public, s-maxage=60, stale-while-revalidate=86400";
 
 function clamp(value: unknown, min: number, max: number) {
   const parsed = Number(value);
@@ -25,21 +36,20 @@ async function listProducts(request: Request) {
     .from("products")
     .select("id, name, code, price, stock, category, image_key", { count: "exact" })
     .eq("active", true)
+    // Section first, name second. Ordering by name alone opened the catalog on
+    // "3 D PEPSICO X 143 G" and "40 HAMBURG CHEF BURGUER C PAN", because the
+    // price list names start with digits. Sections happen to sort with
+    // "cotillon" first and "varios" last, so the shop leads with what it is
+    // known for and the unfiled drawer sits at the end.
+    .order("category", { ascending: true })
     .order("name", { ascending: true })
     .range(offset, offset + limit - 1);
 
-  if (query) {
-    // PostgREST parses `or=(...)` as a comma-separated list, so a comma, paren
-    // or dot typed in the search box would split the filter into nonsense.
-    // Quoting the value and escaping quotes/backslashes keeps it one literal.
-    // % and _ are escaped too, otherwise they act as LIKE wildcards.
-    const escaped = query
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/%/g, "\\%")
-      .replace(/_/g, "\\_");
-    const like = `"%${escaped}%"`;
-    builder = builder.or(`name.ilike.${like},id.ilike.${like},code.ilike.${like}`);
+  // One filter per word, ANDed by PostgREST, so word order does not matter and
+  // accents match both ways. See _lib/search.ts for why this is a regex and
+  // not a LIKE pattern.
+  for (const group of searchFilterGroups(query)) {
+    builder = builder.or(group);
   }
   // Rows written before a section was renamed still carry the old slug, so a
   // request for the general drawer has to match both names.
@@ -56,6 +66,12 @@ async function listProducts(request: Request) {
   const { data, count, error } = await builder;
   if (error) return json({ error: error.message }, { status: 500 });
 
+  // The dashboard looks at its own work, so it must never read a copy that is
+  // a minute behind the edit just made: the photo filter and anything asking
+  // for `fresh` skip the cache entirely.
+  const wantsFresh = url.searchParams.get("fresh") === "1";
+  const cacheControl = photo || wantsFresh ? "no-store" : PUBLIC_CACHE;
+
   return json({
     total: count ?? 0,
     products: (data ?? []).map((product) => ({
@@ -68,7 +84,7 @@ async function listProducts(request: Request) {
       unit: "un",
       image: productImageUrl(String(product.id), product.image_key as string | null),
     })),
-  });
+  }, { headers: { "Cache-Control": cacheControl } });
 }
 
 async function createProduct(request: Request) {
