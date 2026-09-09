@@ -1,6 +1,11 @@
-/** Longest edge of the stored image. Cards show it around 150–320px, so this
- *  still leaves room for retina screens without storing camera-sized files. */
-const MAX_EDGE = 1000;
+/** Longest edge of the stored image.
+ *
+ *  Cards show the photo at roughly 150px on a phone and 320px on a desktop, so
+ *  640 still covers a 2x screen at the largest size. At 1000 the stored files
+ *  came out at 92–120 KB each — several times what any card ever displays, paid
+ *  for in storage and in the shopper's mobile data, multiplied by 15.000
+ *  products still to photograph. */
+const MAX_EDGE = 640;
 const QUALITY = 0.82;
 
 /**

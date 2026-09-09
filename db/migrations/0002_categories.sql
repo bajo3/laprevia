@@ -1,3 +1,7 @@
+-- HISTÓRICO — no correr sobre la base actual.
+-- Escrita para SQLite/D1, cuando el backend era un Worker de Cloudflare.
+-- El esquema vigente (Postgres/Supabase) está en 0003_postgres_schema.sql.
+
 -- Reemplaza la sección "almacen" por el cajón general "varios".
 --
 -- No hace falta correr esto a mano: la app entiende las dos formas y el panel
