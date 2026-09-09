@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  El catálogo es una sola página: las secciones y la búsqueda son estado del
+  cliente, no URLs propias. Si algún día cada sección tiene su dirección,
+  van acá. Esta URL tiene que decir lo mismo que el canonical de index.html,
+  la línea Sitemap: de robots.txt y SITE_URL en src/data/site-config.ts.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.distribuidoralaprevia.com.ar/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

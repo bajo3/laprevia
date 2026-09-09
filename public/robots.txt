@@ -1,0 +1,13 @@
+# Catálogo de Distribuidora La Previa (Tandil)
+User-agent: *
+Allow: /
+
+# El panel interno no aporta nada a una búsqueda y no debería aparecer en una.
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin-fotos.html
+
+# Respuestas de la API: son datos, no páginas.
+Disallow: /api/
+
+Sitemap: https://www.distribuidoralaprevia.com.ar/sitemap.xml

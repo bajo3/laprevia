@@ -1,9 +1,59 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": "laprevia-lime.vercel.app" }],
+      "destination": "https://www.distribuidoralaprevia.com.ar/$1",
+      "permanent": true
+    },
+    {
+      "source": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": "laprevia-bajo3s-projects.vercel.app" }],
+      "destination": "https://www.distribuidoralaprevia.com.ar/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), payment=(), camera=(self)"
+        }
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }

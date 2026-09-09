@@ -1,3 +1,5 @@
+import { WHATSAPP_CATALOG_URL } from "../data/site-config";
+
 export default function Hero() {
   return (
     <section id="top" className="relative overflow-hidden bg-navy pb-16 pt-10 text-cream sm:pb-24 sm:pt-16">
@@ -34,7 +36,7 @@ export default function Hero() {
             Ver catálogo
           </a>
           <a
-            href="https://wa.me/c/5492494009317"
+            href={WHATSAPP_CATALOG_URL}
             target="_blank"
             rel="noreferrer"
             className="rounded-full border-2 border-cream/40 px-8 py-4 font-display text-xl text-cream transition hover:border-teal hover:text-teal"

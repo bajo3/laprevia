@@ -21,7 +21,17 @@
       name="description"
       content="Catálogo de Distribuidora La Previa — cotillón, snacks, golosinas, helados e importados en Tandil. Armá tu pedido y envialo por WhatsApp."
     />
-    <link rel="canonical" href="https://laprevia-lime.vercel.app/" />
+
+    <!-- Este archivo es HTML estático y no puede leer src/data/site-config.ts,
+         así que la dirección del sitio está repetida a mano en cuatro lugares:
+         el canonical y las tres etiquetas og de acá abajo, public/sitemap.xml,
+         la línea Sitemap: de public/robots.txt, y SITE_URL en site-config.ts.
+         Los cuatro tienen que decir lo mismo.
+
+         Es la dirección con www: Vercel todavía no tiene certificado para el
+         dominio sin www (no está cargado como dominio del proyecto). Ver la
+         nota completa en site-config.ts. -->
+    <link rel="canonical" href="https://www.distribuidoralaprevia.com.ar/" />
 
     <!-- The catalog is shared mostly over WhatsApp and Instagram, where a link
          with no preview card looks like spam. -->
@@ -33,8 +43,8 @@
       property="og:description"
       content="Distribuidora mayorista y minorista en Tandil. Mirá el catálogo y pedí por WhatsApp."
     />
-    <meta property="og:url" content="https://laprevia-lime.vercel.app/" />
-    <meta property="og:image" content="https://laprevia-lime.vercel.app/og-image.png" />
+    <meta property="og:url" content="https://www.distribuidoralaprevia.com.ar/" />
+    <meta property="og:image" content="https://www.distribuidoralaprevia.com.ar/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />

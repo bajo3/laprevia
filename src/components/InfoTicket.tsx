@@ -1,26 +1,36 @@
+import {
+  ADDRESS,
+  INSTAGRAM_HANDLE,
+  INSTAGRAM_URL,
+  MAPS_URL,
+  OPENING_HOURS,
+  PHONE_DISPLAY,
+  WHATSAPP_CATALOG_URL,
+} from "../data/site-config";
+
 const items = [
   {
     icon: "📍",
     label: "Dirección",
-    value: "Darragueira 1774, Tandil",
-    href: "https://maps.google.com/?q=Darragueira+1774,+Tandil,+Provincia+de+Buenos+Aires",
+    value: ADDRESS,
+    href: MAPS_URL,
   },
   {
     icon: "🕒",
     label: "Horario",
-    value: "Lunes a sábados de 9 a 13 y de 15 a 19 hs",
+    value: OPENING_HOURS,
   },
   {
     icon: "📱",
     label: "WhatsApp",
-    value: "+54 9 2494 00-9317",
-    href: "https://wa.me/c/5492494009317",
+    value: PHONE_DISPLAY,
+    href: WHATSAPP_CATALOG_URL,
   },
   {
     icon: "📷",
     label: "Instagram",
-    value: "@distribuidoralaprevia_",
-    href: "https://www.instagram.com/distribuidoralaprevia_/",
+    value: `@${INSTAGRAM_HANDLE}`,
+    href: INSTAGRAM_URL,
   },
 ];
 
