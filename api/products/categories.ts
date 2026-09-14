@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../_lib/supabase.js";
 import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
-import { CATEGORY_SLUGS, FALLBACK_CATEGORY, isKnownCategory } from "../_lib/categories.js";
+import { FALLBACK_CATEGORY, loadCategories } from "../_lib/categories.js";
 
 export const config = { runtime: "edge" };
 
@@ -14,9 +14,9 @@ type Supabase = NonNullable<ReturnType<typeof getSupabaseAdmin>>;
 
 /** How many active products sit in each section. The panel shows this so the
  *  shop can see the general drawer emptying as articles get filed. */
-async function countByCategory(supabase: Supabase) {
+async function countByCategory(supabase: Supabase, slugs: string[]) {
   const responses = await Promise.all(
-    CATEGORY_SLUGS.map((slug) => {
+    slugs.map((slug) => {
       const builder = supabase
         .from("products")
         .select("id", { count: "exact", head: true })
@@ -31,20 +31,22 @@ async function countByCategory(supabase: Supabase) {
 
   const counts: Record<string, number> = {};
   responses.forEach((response, index) => {
-    counts[CATEGORY_SLUGS[index]] = response.error ? 0 : response.count ?? 0;
+    counts[slugs[index]] = response.error ? 0 : response.count ?? 0;
   });
   return counts;
 }
 
 /** Moves a batch of products to another section. Only `category` is written,
  *  so a move never touches the price, the stock or the photo. */
-async function moveProducts(request: Request, supabase: Supabase) {
+async function moveProducts(request: Request, supabase: Supabase, slugs: string[]) {
   const body = (await request.json()) as { updates?: Array<{ id?: unknown; category?: unknown }> };
   const updates = Array.isArray(body?.updates) ? body.updates : [];
   if (!updates.length) return json({ error: "No hay productos para mover." }, { status: 400 });
   if (updates.length > MAX_UPDATES) {
     return json({ error: `Se pueden mover hasta ${MAX_UPDATES} productos por vez.` }, { status: 413 });
   }
+
+  const known = new Set(slugs);
 
   // Grouping by destination turns "move these 900 products" into one update
   // per section per chunk instead of 900 separate round trips.
@@ -53,7 +55,7 @@ async function moveProducts(request: Request, supabase: Supabase) {
     const id = String(update?.id ?? "").trim();
     const category = String(update?.category ?? "").trim().toLowerCase();
     if (!id) continue;
-    if (!isKnownCategory(category)) {
+    if (!known.has(category)) {
       return json({ error: `La sección "${category}" no existe.` }, { status: 400 });
     }
     const bucket = byCategory.get(category);
@@ -76,7 +78,7 @@ async function moveProducts(request: Request, supabase: Supabase) {
     }
   }
 
-  return json({ moved, counts: await countByCategory(supabase) });
+  return json({ moved, counts: await countByCategory(supabase, slugs) });
 }
 
 export default async function handler(request: Request) {
@@ -84,13 +86,18 @@ export default async function handler(request: Request) {
     const supabase = getSupabaseAdmin();
     if (!supabase) return json({ error: "Database not configured" }, { status: 503 });
 
+    // The sections themselves are created and deleted from the panel, so the
+    // list is read per request rather than compiled in.
+    const { categories } = await loadCategories(supabase);
+    const slugs = categories.map((category) => category.slug);
+
     if (request.method === "GET") {
-      return json({ categories: CATEGORY_SLUGS, counts: await countByCategory(supabase) });
+      return json({ categories: slugs, counts: await countByCategory(supabase, slugs) });
     }
 
     if (request.method === "POST") {
       if (!isAdminAuthorized(request)) return json({ error: "Unauthorized" }, { status: 401 });
-      return await moveProducts(request, supabase);
+      return await moveProducts(request, supabase, slugs);
     }
 
     return json({ error: "Method not allowed" }, { status: 405 });

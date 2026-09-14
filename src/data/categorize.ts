@@ -1,17 +1,16 @@
-import { categories } from "./catalog-config";
+import { areCategoriesLoaded, FALLBACK_SLUG, getCategories } from "./catalog-config";
 
 /** Where a product lands when nothing else matches. Everything in the catalog
  *  has to belong to some section, and guessing wrong is worse than parking it
  *  here: "Varios" is the drawer the panel is meant to empty over time. */
-export const FALLBACK_CATEGORY = "varios";
+export const FALLBACK_CATEGORY = FALLBACK_SLUG;
 
-/** Slugs retired from the catalog, mapped to their replacement. Rows saved
- *  before a rename still carry the old slug, so every read normalizes. */
+/** Slugs retired in code, before sections became editable from the panel.
+ *  Deleting a section from the panel refiles its products, so nothing new ever
+ *  lands here — but rows written under the old name are still in the database. */
 const LEGACY_SLUGS: Record<string, string> = {
   almacen: FALLBACK_CATEGORY,
 };
-
-const KNOWN_SLUGS = new Set(categories.map((category) => category.slug));
 
 export const normalize = (value: unknown) =>
   String(value ?? "")
@@ -21,13 +20,19 @@ export const normalize = (value: unknown) =>
     .replace(/[̀-ͯ]/g, "");
 
 /** Accepts whatever a row carries and returns a slug the catalog can render.
- *  Unknown and retired slugs collapse to the fallback instead of creating a
- *  ghost section no button can reach. */
+ *  Unknown and retired slugs collapse to the fallback instead of naming a
+ *  section no button can reach.
+ *
+ *  While the section list is still loading, an unrecognised slug is passed
+ *  through untouched. Collapsing it then would file every product of a section
+ *  created after this build under "Varios" for the second the request takes,
+ *  and the shopper would watch the catalog rearrange itself. */
 export function normalizeCategory(value: unknown): string {
   const slug = normalize(value);
   if (!slug) return FALLBACK_CATEGORY;
   if (LEGACY_SLUGS[slug]) return LEGACY_SLUGS[slug];
-  return KNOWN_SLUGS.has(slug) ? slug : FALLBACK_CATEGORY;
+  if (getCategories().some((category) => category.slug === slug)) return slug;
+  return areCategoriesLoaded() ? FALLBACK_CATEGORY : slug;
 }
 
 /** Keyword matching is whole-word, so "molde" does not fire on "moldear" and
@@ -38,7 +43,12 @@ function matches(haystack: string, word: string) {
   return new RegExp(`(^|[^a-z0-9])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`).test(haystack);
 }
 
-/** First rule that matches wins, so the order is the priority order. Brands go
+/** Keyword rules for the sections the catalog shipped with. They only ever
+ *  apply to an article nobody has filed yet, and a rule naming a section that
+ *  no longer exists is skipped — a section added from the panel simply has no
+ *  rule, and its articles get filed by hand or in bulk from the tick boxes.
+ *
+ *  First rule that matches wins, so the order is the priority order. Brands go
  *  first: "BOMBA AROMANZA X4" is a sahumería product and "BOMBA AGUA
  *  SUMERGIBLE" is not, and only the brand tells them apart. */
 const CATEGORY_RULES: Array<{ slug: string; words: string[] }> = [
@@ -123,7 +133,12 @@ const CATEGORY_RULES: Array<{ slug: string; words: string[] }> = [
  *  correction made by hand from the panel. */
 export function guessCategory(name: string): string {
   const haystack = normalize(name);
-  const rule = CATEGORY_RULES.find((candidate) => candidate.words.some((word) => matches(haystack, word)));
+  // A rule whose section the shop deleted is skipped rather than proposing a
+  // move the server would reject.
+  const known = new Set(getCategories().map((category) => category.slug));
+  const rule = CATEGORY_RULES.find(
+    (candidate) => known.has(candidate.slug) && candidate.words.some((word) => matches(haystack, word)),
+  );
   return rule?.slug ?? FALLBACK_CATEGORY;
 }
 

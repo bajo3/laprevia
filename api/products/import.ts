@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../_lib/supabase.js";
 import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
-import { normalizeCategory } from "../_lib/categories.js";
+import { loadCategorySlugs, normalizeCategory } from "../_lib/categories.js";
 
 export const config = { runtime: "edge" };
 
@@ -63,7 +63,10 @@ export default async function handler(request: Request) {
     const incoming = Array.isArray(body?.products) ? body.products : [];
     if (!incoming.length) return json({ error: "No products received" }, { status: 400 });
 
-    const assigned = await readAssignedCategories(supabase);
+    const [assigned, known] = await Promise.all([
+      readAssignedCategories(supabase),
+      loadCategorySlugs(supabase),
+    ]);
 
     const importBatch = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -84,7 +87,7 @@ export default async function handler(request: Request) {
         cost: Number.isFinite(Number(product.cost)) ? Number(product.cost) : null,
         price: Number(product.price ?? 0),
         stock: Number.isFinite(Number(product.stock)) ? Number(product.stock) : null,
-        category: stored ? normalizeCategory(stored) : normalizeCategory(product.category),
+        category: stored ? normalizeCategory(stored, known) : normalizeCategory(product.category, known),
         active: true,
         updated_at: now,
         import_batch: importBatch,

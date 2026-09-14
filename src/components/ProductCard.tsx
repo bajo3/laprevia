@@ -58,7 +58,9 @@ export default function ProductCard({
         className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl text-5xl"
         style={{ backgroundColor: `color-mix(in srgb, ${category?.color ?? "var(--color-pink)"} 18%, white)` }}
       >
-        {!imageSrc && <span aria-hidden="true">{product.emoji}</span>}
+        {/* The section wins over the emoji stored on the product: the
+            product was normalized before the section list finished loading. */}
+        {!imageSrc && <span aria-hidden="true">{category?.emoji ?? product.emoji}</span>}
         {imageSrc && (
           <img
             src={imageSrc}

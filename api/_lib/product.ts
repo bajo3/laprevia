@@ -10,7 +10,13 @@ export type ProductPayload = {
 
 export type ProductPayloadError = { error: string };
 
-export function parseProductPayload(body: unknown): ProductPayload | ProductPayloadError {
+/** `known` is the set of section slugs that exist right now, read from the
+ *  database by the caller. A section the shop deleted collapses to the general
+ *  drawer instead of being written back onto the product. */
+export function parseProductPayload(
+  body: unknown,
+  known: Set<string>,
+): ProductPayload | ProductPayloadError {
   const input = (body ?? {}) as Record<string, unknown>;
   const name = String(input.name ?? "").trim();
   const code = String(input.code ?? "").trim();
@@ -19,7 +25,7 @@ export function parseProductPayload(body: unknown): ProductPayload | ProductPayl
     input.stock === "" || input.stock === null || input.stock === undefined
       ? null
       : Number(input.stock);
-  const category = normalizeCategory(input.category);
+  const category = normalizeCategory(input.category, known);
 
   if (!name) return { error: "Product name is required" };
   if (!Number.isFinite(price) || price < 0) return { error: "Price must be a valid non-negative number" };

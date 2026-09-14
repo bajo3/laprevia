@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AdminLogin from "./AdminLogin";
 import { compressImage } from "./compress-image";
+import SectionManager from "./SectionManager";
 import categoryMap from "../data/category-map.json";
-import { categories, emojiByCategory } from "../data/catalog-config";
+import { categoryEmoji, useCategories } from "../data/catalog-config";
 import { FALLBACK_CATEGORY, guessCategory, isUnsorted, normalizeCategory } from "../data/categorize";
 import {
   fetchAllProducts,
@@ -10,6 +11,7 @@ import {
   fetchCategoryCounts,
   moveProductsToCategories,
   normalizeRemoteProduct,
+  refreshCategories,
   PAGE_SIZE,
   type CategoryCounts,
   type CategoryMove,
@@ -168,7 +170,7 @@ async function parseExcelFile(
       category,
       price: Math.round(price),
       unit: "un",
-      emoji: emojiByCategory[category] ?? emojiByCategory[FALLBACK_CATEGORY],
+      emoji: categoryEmoji(category),
       image: previous?.image,
       stock: Number.isFinite(stock) ? stock : undefined,
     });
@@ -180,6 +182,7 @@ async function parseExcelFile(
 const SESSION_KEY = "laprevia-admin-session";
 
 export default function AdminDashboard() {
+  const { categories, isEditable: areSectionsEditable } = useCategories();
   const [session, setSession] = useState<string | null>(() => sessionStorage.getItem(SESSION_KEY));
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
@@ -188,7 +191,8 @@ export default function AdminDashboard() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCounts>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkCategory, setBulkCategory] = useState<string>(categories[0].slug);
+  const [bulkCategory, setBulkCategory] = useState<string>(FALLBACK_CATEGORY);
+  const [isSectionManagerOpen, setIsSectionManagerOpen] = useState(false);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [isMovingSelection, setIsMovingSelection] = useState(false);
   const [sortPreview, setSortPreview] = useState<SortPreview | null>(null);
@@ -278,6 +282,22 @@ export default function AdminDashboard() {
   useEffect(() => {
     void refreshCounts();
   }, [refreshCounts]);
+
+  /** fresh: the panel is where sections get edited, so it must never read the
+   *  copy the CDN is still holding from before the last change. */
+  useEffect(() => {
+    void refreshCategories(true);
+  }, []);
+
+  /** A section can disappear while its slug is still selected here — the shop
+   *  deletes it from the manager below with a filter or a bulk destination
+   *  still pointing at it. Both fall back rather than sending the server a
+   *  section that no longer exists. */
+  useEffect(() => {
+    const exists = (slug: string) => categories.some((category) => category.slug === slug);
+    if (categoryFilter && !exists(categoryFilter)) setCategoryFilter(null);
+    if (!exists(bulkCategory)) setBulkCategory(FALLBACK_CATEGORY);
+  }, [bulkCategory, categories, categoryFilter]);
 
   async function loadMore() {
     if (isLoadingMore || hasLoadError) return;
@@ -753,7 +773,7 @@ export default function AdminDashboard() {
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-pink">Secciones del catálogo</p>
               <h2 className="font-display mt-1 text-2xl">¿A qué sección va cada producto?</h2>
               <p className="mt-1 max-w-xl text-sm text-ink/60">
-                Tocá una sección para ver solo esos productos. Cada tarjeta tiene un desplegable para cambiarla, o tildá varias y movelas todas juntas.
+                Tocá una sección para ver solo esos productos. Cada tarjeta tiene un desplegable para cambiarla, o tildá varias y movelas todas juntas. Con <strong>Editar secciones</strong> podés crear, renombrar, reordenar o eliminar secciones.
               </p>
               {unsortedCount > 0 && (
                 <p className="mt-2 text-sm font-bold text-ink/70">
@@ -761,14 +781,24 @@ export default function AdminDashboard() {
                 </p>
               )}
             </div>
-            <button
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setIsSectionManagerOpen((open) => !open)}
+                aria-expanded={isSectionManagerOpen}
+                className="rounded-full border-[3px] border-ink bg-white px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+              >
+                {isSectionManagerOpen ? "Listo" : "✏️ Editar secciones"}
+              </button>
+              <button
                 type="button"
                 onClick={() => void scanUnsorted()}
                 disabled={isScanning || hasLoadError}
-                className="shrink-0 rounded-full border-[3px] border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
+                className="rounded-full border-[3px] border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
               >
                 {isScanning ? "Revisando…" : "✨ Ubicar automáticamente"}
               </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -796,6 +826,24 @@ export default function AdminDashboard() {
               );
             })}
           </div>
+
+          {isSectionManagerOpen && (
+            <SectionManager
+              categories={categories}
+              isEditable={areSectionsEditable}
+              counts={categoryCounts}
+              token={session}
+              onNotice={setNotice}
+              onChanged={() => {
+                void loadPage();
+                void refreshCounts();
+              }}
+              onUnauthorized={() => {
+                handleLogout();
+                setNotice({ tone: "error", text: "Tu sesión venció o la clave cambió. Iniciá sesión de nuevo." });
+              }}
+            />
+          )}
 
           {sortPreview && (
             <div className="mt-5 rounded-2xl border-2 border-dashed border-teal bg-teal/10 p-4">

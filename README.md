@@ -23,9 +23,20 @@ La actualización agrega productos nuevos, actualiza nombre/código/precio/stock
 
 ## Secciones del catálogo
 
-Las secciones viven en `src/data/catalog-config.ts` y las reglas para ubicar productos nuevos en `src/data/categorize.ts`. Hoy son: Cotillón, Repostería, Descartables, Golosinas, Snacks, Galletitas, Helados, Sahumerios, Importados, Regalos y **Varios**.
+Las secciones viven en la base (tabla `categories`) y **se administran desde `/admin`**, sin tocar código ni volver a publicar el sitio. En **Secciones del catálogo → ✏️ Editar secciones** se puede:
 
-`Varios` es el cajón general: ahí cae todo lo que todavía no tiene sección asignada (antes se llamaba "Almacén"). Desde el panel, en **Secciones del catálogo**, se puede:
+- **Crear** una sección nueva (nombre, emoji y color).
+- **Renombrar** una existente, o cambiarle el emoji y el color.
+- **Reordenar** con las flechas: ese es el orden de los botones del catálogo público.
+- **Eliminar** una sección, eligiendo a qué sección pasan sus productos.
+
+**Eliminar una sección no borra ningún producto.** Antes de borrar la fila de la sección, el servidor mueve sus productos a la sección de destino (por defecto, Varios). El orden importa: si el movimiento falla, la sección sigue ahí y se puede reintentar; al revés quedarían productos apuntando a una sección que ya no existe.
+
+Renombrar tampoco reescribe productos. Cada producto guarda el `slug` de su sección (`cotillon`, `bazar-y-limpieza`), que se genera una sola vez al crearla y no cambia nunca; el nombre que se edita es solo el que lee el cliente. Por eso renombrar cuesta una escritura y no quince mil.
+
+`Varios` es el cajón general: ahí cae todo lo que todavía no tiene sección asignada (antes se llamaba "Almacén"). Es la única sección protegida — no se puede eliminar ni sacar del último lugar, porque es adonde van a parar los productos de una sección que se elimina — pero sí se puede renombrar.
+
+Además, en esa misma tarjeta del panel se puede:
 
 - Filtrar por sección para ver solo esos productos.
 - Cambiar la sección de un producto con el desplegable de su tarjeta.
@@ -34,14 +45,11 @@ Las secciones viven en `src/data/catalog-config.ts` y las reglas para ubicar pro
 
 Lo que se asigna a mano gana siempre: ni la importación ni el clasificador lo pisan.
 
-Al agregar o renombrar una sección hay que tocar varios archivos, porque `api/` compila aparte y no puede importar de `src/`. `npm run build` corre `scripts/check-categories.mjs`, que falla si el frontend y la API dejan de coincidir:
+Las reglas por palabra clave de **Ubicar automáticamente** siguen en `src/data/categorize.ts`, atadas a las secciones con las que nació el catálogo. Una sección creada desde el panel simplemente no tiene reglas: sus productos se ubican a mano o en lote desde las tildes. Una regla que nombra una sección eliminada se ignora sola.
 
-1. `src/data/catalog-config.ts` (lista y colores)
-2. `src/data/categorize.ts` (reglas por palabra clave)
-3. `api/_lib/categories.ts` (validación en el servidor)
-4. `db/migrations/0003_postgres_schema.sql` si cambia el valor por defecto
+Antes de que existiera la tabla, la lista estaba escrita a mano en tres archivos (frontend, API y migraciones) y `npm run build` corría un script que fallaba si dejaban de coincidir. Ya no hace falta: hay una sola lista y está en la base.
 
-Si una sección se retira, se agrega a `LEGACY_SLUGS` para que las filas viejas sigan resolviendo. `db/migrations/0002_categories.sql` deja la base prolija de una vez, pero no es obligatorio correrlo: la app entiende las dos formas.
+**Para que esto funcione hay que correr `db/migrations/0004_categories_table.sql` una vez.** Hasta entonces el sitio sigue andando igual que siempre, con las once secciones originales servidas desde el código, y el panel lo dice en vez de ofrecer botones que no guardarían nada.
 
 ## Fotos y persistencia
 
@@ -73,6 +81,6 @@ npm run build
 
 Genera la carpeta `dist/`. Las fotos no van ahí: viven en Supabase Storage y se sirven por `/api/products/:id/image`.
 
-`npm run build` corre, en orden: la verificación de secciones, el chequeo de tipos del frontend, el chequeo de tipos de `api/` y el build de Vite.
+`npm run build` corre, en orden: el chequeo de tipos del frontend, el chequeo de tipos de `api/` y el build de Vite.
 
 No existe más una copia estática del catálogo. Antes se publicaba `catalogo-data.json` (3 MB) como respaldo para cuando la API no respondía, pero solo lo regeneraba un script local que dejó de usarse cuando la importación pasó al panel: se iba desactualizando en silencio y, al activarse, mostraba precios viejos sin avisar. Hoy, si el catálogo no carga, la página lo dice y ofrece WhatsApp.

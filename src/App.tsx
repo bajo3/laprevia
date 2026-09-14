@@ -7,8 +7,8 @@ import { SearchBar } from "./components/SearchBar";
 import { CartDrawer } from "./components/CartDrawer";
 import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
-import { categories } from "./data/catalog-config";
-import { fetchCatalogPage } from "./data/catalog-api";
+import { useCategories } from "./data/catalog-config";
+import { fetchCatalogPage, refreshCategories } from "./data/catalog-api";
 import { WHATSAPP_CHAT_URL } from "./data/site-config";
 import type { Product } from "./data/products";
 
@@ -58,6 +58,7 @@ function readStoredCart(): Record<string, CartEntry> {
 }
 
 function PublicCatalog() {
+  const { categories, isLoaded: areSectionsLoaded } = useCategories();
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [isCatalogLoading, setIsCatalogLoading] = useState(true);
@@ -76,6 +77,12 @@ function PublicCatalog() {
     const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
+
+  /** The sections are the shop's to edit from the panel, so the nav rail is
+   *  read from the server like the products are. */
+  useEffect(() => {
+    void refreshCategories();
+  }, []);
 
   /** Survives a reload and, on a phone, the trip out to WhatsApp and back. */
   useEffect(() => {
@@ -110,6 +117,15 @@ function PublicCatalog() {
   useEffect(() => {
     void loadFirstPage();
   }, [loadFirstPage]);
+
+  /** A section can be deleted from the panel while the catalog is open on
+   *  someone's phone. Without this the shopper is left filtering by a section
+   *  that no longer exists, looking at an empty grid with no way back other
+   *  than the chip they cannot see is gone. */
+  useEffect(() => {
+    if (!areSectionsLoaded || !activeCategory) return;
+    if (!categories.some((category) => category.slug === activeCategory)) setActiveCategory(null);
+  }, [activeCategory, areSectionsLoaded, categories]);
 
   const loadMore = useCallback(async () => {
     if (isLoadingMore) return;
@@ -203,7 +219,10 @@ function PublicCatalog() {
           isSearching={isCatalogLoading}
           onQueryChange={setQuery}
         />
-        <CategoryNav categories={categories} active={activeCategory} onSelect={setActiveCategory} />
+        {/* Empty until the list arrives: the "Todo" chip is there from the
+            first paint, and the sections appear rather than the built-in list
+            flashing and being rewritten under the shopper. */}
+        <CategoryNav categories={areSectionsLoaded ? categories : []} active={activeCategory} onSelect={setActiveCategory} />
 
         {/* Says so plainly instead of quietly serving a saved copy: the prices
             in one of those copies go stale, and a wrong wholesale price is an

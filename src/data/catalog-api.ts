@@ -1,6 +1,6 @@
-import type { Product } from "./products";
-import { emojiByCategory } from "./catalog-config";
-import { FALLBACK_CATEGORY, normalizeCategory } from "./categorize";
+import type { Category, Product } from "./products";
+import { categoryEmoji, DEFAULT_CATEGORIES, setCategoryState } from "./catalog-config";
+import { normalizeCategory } from "./categorize";
 
 /** Rows per request. Supabase/PostgREST caps a single response at 1000 rows,
  *  so the catalog is paged instead of fetched whole. */
@@ -17,7 +17,7 @@ export function normalizeRemoteProduct(value: Partial<Product>): Product {
     unit: value.unit ?? "un",
     // Derived from the section rather than read from the row: a product moved
     // to another section has to change its placeholder with it.
-    emoji: emojiByCategory[category] ?? emojiByCategory[FALLBACK_CATEGORY],
+    emoji: categoryEmoji(category),
     image: value.image,
     stock: value.stock === undefined ? undefined : Number(value.stock),
   };
@@ -123,4 +123,82 @@ export async function moveProductsToCategories(moves: CategoryMove[], token: str
   if (!response.ok) return { response, moved: 0, counts: {} as CategoryCounts };
   const payload = (await response.json()) as { moved?: number; counts?: CategoryCounts };
   return { response, moved: Number(payload.moved ?? 0), counts: payload.counts ?? {} };
+}
+
+/* -------------------------------------------------------------------------
+ * Secciones
+ *
+ * The catalog used to carry its sections in the bundle, which meant adding one
+ * was a deploy. They live in the database now and every one of these calls
+ * ends at /api/categories, the only place allowed to write them.
+ * ---------------------------------------------------------------------- */
+
+type CategoriesResponse = { categories?: Category[]; editable?: boolean };
+
+function authHeaders(token: string | null, body = false): Record<string, string> {
+  return {
+    ...(body ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+/** Reads the sections into the shared store. `fresh` skips the edge cache and
+ *  is what the panel uses, so an edit is never hidden behind a copy the CDN
+ *  was still holding. */
+export async function refreshCategories(fresh = false): Promise<Category[]> {
+  try {
+    const response = await fetch(`/api/categories${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("No se pudieron leer las secciones.");
+    const payload = (await response.json()) as CategoriesResponse;
+    const categories = (payload.categories ?? []).filter((category) => category?.slug);
+    if (!categories.length) throw new Error("El servidor no devolvió ninguna sección.");
+    setCategoryState({ categories, isLoaded: true, isEditable: Boolean(payload.editable) });
+    return categories;
+  } catch {
+    // The sections the build shipped with, so the catalog still has a nav rail
+    // and the panel still has a section dropdown. isEditable stays false: the
+    // panel says the list could not be read rather than offering buttons that
+    // would save nothing.
+    setCategoryState({ categories: DEFAULT_CATEGORIES, isLoaded: true, isEditable: false });
+    return DEFAULT_CATEGORIES;
+  }
+}
+
+/** Every write answers with the list as it now stands, so the panel never has
+ *  to guess what the server did with what it sent. */
+async function writeCategories(method: string, body: unknown, token: string | null) {
+  const response = await fetch("/api/categories", {
+    method,
+    headers: authHeaders(token, true),
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw Object.assign(new Error(payload.error || "No se pudo guardar la sección."), { status: response.status });
+  }
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  await refreshCategories(true);
+  return payload;
+}
+
+export function createCategory(input: { label: string; emoji: string; color: string }, token: string | null) {
+  return writeCategories("POST", input, token);
+}
+
+export function updateCategory(
+  input: { slug: string; label?: string; emoji?: string; color?: string },
+  token: string | null,
+) {
+  return writeCategories("PATCH", input, token);
+}
+
+export function reorderCategories(slugs: string[], token: string | null) {
+  return writeCategories("PUT", { slugs }, token);
+}
+
+/** Deleting a section never deletes products: they are refiled into `moveTo`
+ *  (the general drawer by default) before the section row goes. */
+export async function deleteCategory(slug: string, moveTo: string, token: string | null) {
+  const payload = await writeCategories("DELETE", { slug, moveTo }, token);
+  return { moved: Number(payload.moved ?? 0), movedTo: String(payload.movedTo ?? moveTo) };
 }

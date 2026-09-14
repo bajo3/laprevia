@@ -5,10 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-categories.mjs && tsc -b && tsc -p api/tsconfig.json && vite build",
+    "build": "tsc -b && tsc -p api/tsconfig.json && vite build",
     "lint": "oxlint",
-    "preview": "vite preview",
-    "check:categories": "node scripts/check-categories.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

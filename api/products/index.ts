@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from "../_lib/supabase.js";
 import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
 import { isPayloadError, parseProductPayload, productImageUrl } from "../_lib/product.js";
-import { FALLBACK_CATEGORY, normalizeCategory } from "../_lib/categories.js";
+import { FALLBACK_CATEGORY, loadCategorySlugs, normalizeCategory } from "../_lib/categories.js";
 import { searchFilterGroups } from "../_lib/search.js";
 
 export const config = { runtime: "edge" };
@@ -38,9 +38,10 @@ async function listProducts(request: Request) {
     .eq("active", true)
     // Section first, name second. Ordering by name alone opened the catalog on
     // "3 D PEPSICO X 143 G" and "40 HAMBURG CHEF BURGUER C PAN", because the
-    // price list names start with digits. Sections happen to sort with
-    // "cotillon" first and "varios" last, so the shop leads with what it is
-    // known for and the unfiled drawer sits at the end.
+    // price list names start with digits. Grouping by section is what matters
+    // here; which section leads follows from the slugs sorting alphabetically,
+    // and the shop sets the order it actually cares about — the one on the nav
+    // rail — from the panel.
     .order("category", { ascending: true })
     .order("name", { ascending: true })
     .range(offset, offset + limit - 1);
@@ -63,7 +64,10 @@ async function listProducts(request: Request) {
   if (photo === "missing") builder = builder.is("image_key", null);
   if (photo === "ready") builder = builder.not("image_key", "is", null);
 
-  const { data, count, error } = await builder;
+  // The section list is a dozen rows and the catalog page is up to a thousand,
+  // so reading both at once costs nothing measurable and keeps a product whose
+  // section was deleted from being served under a name no button can reach.
+  const [{ data, count, error }, known] = await Promise.all([builder, loadCategorySlugs(supabase)]);
   if (error) return json({ error: error.message }, { status: 500 });
 
   // The dashboard looks at its own work, so it must never read a copy that is
@@ -80,7 +84,7 @@ async function listProducts(request: Request) {
       code: product.code || undefined,
       price: Number(product.price ?? 0),
       stock: product.stock === null ? undefined : Number(product.stock),
-      category: normalizeCategory(product.category),
+      category: normalizeCategory(product.category, known),
       unit: "un",
       image: productImageUrl(String(product.id), product.image_key as string | null),
     })),
@@ -93,7 +97,7 @@ async function createProduct(request: Request) {
   if (!supabase) return json({ error: "Database not configured" }, { status: 503 });
 
   const body = (await request.json()) as Record<string, unknown>;
-  const payload = parseProductPayload(body);
+  const payload = parseProductPayload(body, await loadCategorySlugs(supabase));
   if (isPayloadError(payload)) return json(payload, { status: 400 });
 
   const id = String(body?.id || `manual-${Date.now()}`);

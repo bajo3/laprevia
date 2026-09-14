@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "../_lib/supabase.js";
 import { isAdminAuthorized } from "../_lib/auth.js";
 import { json } from "../_lib/json.js";
 import { isPayloadError, parseProductPayload } from "../_lib/product.js";
+import { loadCategorySlugs } from "../_lib/categories.js";
 
 export const config = { runtime: "edge" };
 
@@ -18,7 +19,7 @@ export default async function handler(request: Request) {
     const id = idFromUrl(request);
 
     if (request.method === "PATCH") {
-      const payload = parseProductPayload(await request.json());
+      const payload = parseProductPayload(await request.json(), await loadCategorySlugs(supabase));
       if (isPayloadError(payload)) return json(payload, { status: 400 });
 
       const { data, error } = await supabase
