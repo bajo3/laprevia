@@ -187,7 +187,7 @@ export default function AdminDashboard() {
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("missing");
+  const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCounts>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -907,7 +907,7 @@ export default function AdminDashboard() {
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, ID o código" className="w-full rounded-full border-2 border-ink bg-white px-4 py-2.5 font-semibold outline-none focus:ring-4 focus:ring-pink/20 sm:w-72" />
               </label>
               <div className="flex rounded-full border-2 border-ink bg-white p-1">
-                {([["missing", "Sin foto"], ["ready", "Con foto"], ["all", "Todas"]] as const).map(([value, label]) => (
+                {([["all", "Todas"], ["missing", "Sin foto"], ["ready", "Con foto"]] as const).map(([value, label]) => (
                   <button key={value} type="button" onClick={() => setPhotoFilter(value)} className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${photoFilter === value ? "bg-ink text-cream" : "text-ink/55"}`}>{label}</button>
                 ))}
               </div>
