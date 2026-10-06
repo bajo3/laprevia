@@ -19,6 +19,8 @@ type ProductCardProps = {
   tiltClass: string;
   quantity: number;
   onChangeQuantity: (product: Product, delta: number) => void;
+  isFavorite: boolean;
+  onToggleFavorite: (product: Product) => void;
 };
 
 export default function ProductCard({
@@ -27,6 +29,8 @@ export default function ProductCard({
   tiltClass,
   quantity,
   onChangeQuantity,
+  isFavorite,
+  onToggleFavorite,
 }: ProductCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [product.image]);
@@ -76,6 +80,33 @@ export default function ProductCard({
             Sin foto
           </span>
         )}
+
+        {/* On the photo's corner rather than in the action row: that row is one
+            full-width button on a 160px card, and splitting it would shrink
+            "Agregar" below a comfortable tap. aria-pressed carries the state,
+            so the label only has to say what the button is about. */}
+        <button
+          type="button"
+          onClick={() => onToggleFavorite(product)}
+          aria-pressed={isFavorite}
+          aria-label={`${product.name}, favorito`}
+          title={isFavorite ? "Quitar de favoritos" : "Guardar en favoritos"}
+          className={`absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center rounded-full border-2 border-ink shadow-[2px_2px_0_var(--color-ink)] transition hover:-translate-y-0.5 active:translate-y-0 active:shadow-none ${
+            isFavorite ? "bg-pink text-white" : "bg-white text-ink"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill={isFavorite ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 20.5s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.5-7.5 10.1-7.5 10.1Z" />
+          </svg>
+        </button>
       </div>
 
       <p className="mt-3 text-[10px] font-extrabold uppercase tracking-wider text-ink/50 sm:mt-4 sm:text-[11px]">

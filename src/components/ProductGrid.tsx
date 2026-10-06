@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Product, Category } from "../data/products";
 import ProductCard from "./ProductCard";
 
@@ -19,6 +20,11 @@ type ProductGridProps = {
   categories: Category[];
   quantities: Record<string, number>;
   onChangeQuantity: (product: Product, delta: number) => void;
+  favoriteIds: ReadonlySet<string>;
+  onToggleFavorite: (product: Product) => void;
+  /** Replaces the "nothing matched your search" message when the list is
+   *  empty for a different reason, such as no favourites marked yet. */
+  emptyState?: ReactNode;
   isLoading?: boolean;
   isLoadingMore?: boolean;
   hasMore?: boolean;
@@ -46,6 +52,9 @@ export default function ProductGrid({
   categories,
   quantities,
   onChangeQuantity,
+  favoriteIds,
+  onToggleFavorite,
+  emptyState,
   isLoading = false,
   isLoadingMore = false,
   hasMore = false,
@@ -71,7 +80,9 @@ export default function ProductGrid({
 
   return (
     <section id="catalogo" className="mx-auto max-w-6xl px-5 pb-20">
-      {products.length === 0 ? (
+      {products.length === 0 && emptyState ? (
+        emptyState
+      ) : products.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-5xl" aria-hidden="true">
             🔍
@@ -93,6 +104,8 @@ export default function ProductGrid({
               tiltClass={tilts[i % tilts.length]}
               quantity={quantities[p.id] ?? 0}
               onChangeQuantity={onChangeQuantity}
+              isFavorite={favoriteIds.has(p.id)}
+              onToggleFavorite={onToggleFavorite}
             />
           ))}
         </div>

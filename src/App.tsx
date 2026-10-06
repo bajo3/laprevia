@@ -9,6 +9,7 @@ import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
 import { useCategories } from "./data/catalog-config";
 import { fetchCatalogPage, refreshCategories } from "./data/catalog-api";
+import { useFavorites } from "./data/favorites";
 import { WHATSAPP_CHAT_URL } from "./data/site-config";
 import type { Product } from "./data/products";
 
@@ -69,9 +70,28 @@ function PublicCatalog() {
   const [cart, setCart] = useState<Record<string, CartEntry>>(readStoredCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const { ids: favoriteIds, idSet: favoriteIdSet, toggle: toggleFavoriteId } = useFavorites();
+  const [showFavorites, setShowFavorites] = useState(false);
+  /** Favourites the server did not send back: products that dropped off the
+   *  last price list. They stay saved — an article that returns with the next
+   *  list comes back as a favourite — so the view says how many are missing
+   *  instead of quietly showing fewer than the chip counts. */
+  const [unavailableFavorites, setUnavailableFavorites] = useState(0);
 
   /** Guards against a slow earlier request overwriting a newer one. */
   const requestId = useRef(0);
+
+  /** Read through a ref so that un-marking a favourite while looking at the
+   *  favourites does not reload the list under the shopper's finger; the card
+   *  is simply dropped from what is already on screen. */
+  const favoriteIdsRef = useRef(favoriteIds);
+  useEffect(() => {
+    favoriteIdsRef.current = favoriteIds;
+  }, [favoriteIds]);
+  /** The ids the list on screen was asked for. "Mostrar más" has to page
+   *  through that same set, or removing one mid-way would shift every offset
+   *  and skip a product. */
+  const viewIdsRef = useRef<string[] | undefined>(undefined);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 300);
@@ -98,21 +118,27 @@ function PublicCatalog() {
   const loadFirstPage = useCallback(async () => {
     const id = ++requestId.current;
     setIsCatalogLoading(true);
+    const ids = showFavorites ? favoriteIdsRef.current : undefined;
+    viewIdsRef.current = ids;
     try {
-      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory });
+      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, ids });
       if (id !== requestId.current) return;
       setProducts(page.products);
       setTotal(page.total);
+      // Only meaningful without a search: with one, a favourite that is not
+      // listed may simply not match what was typed.
+      setUnavailableFavorites(ids && !debouncedQuery.trim() ? Math.max(0, ids.length - page.total) : 0);
       setHasLoadError(false);
     } catch {
       if (id !== requestId.current) return;
       setProducts([]);
       setTotal(0);
+      setUnavailableFavorites(0);
       setHasLoadError(true);
     } finally {
       if (id === requestId.current) setIsCatalogLoading(false);
     }
-  }, [activeCategory, debouncedQuery]);
+  }, [activeCategory, debouncedQuery, showFavorites]);
 
   useEffect(() => {
     void loadFirstPage();
@@ -132,7 +158,12 @@ function PublicCatalog() {
     setIsLoadingMore(true);
     const offset = products.length;
     try {
-      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, offset });
+      const page = await fetchCatalogPage({
+        query: debouncedQuery,
+        category: activeCategory,
+        ids: viewIdsRef.current,
+        offset,
+      });
       setProducts((current) => [...current, ...page.products]);
       setTotal(page.total);
     } catch {
@@ -199,6 +230,28 @@ function PublicCatalog() {
     });
   }, []);
 
+  /** In the favourites view a product stops being listed the moment its heart
+   *  is un-marked. The counts follow, so "3 productos" never sits above two
+   *  cards. */
+  const visibleProducts = useMemo(
+    () => (showFavorites ? products.filter((product) => favoriteIdSet.has(product.id)) : products),
+    [favoriteIdSet, products, showFavorites],
+  );
+  const visibleTotal = total - (products.length - visibleProducts.length);
+
+  const toggleFavorite = useCallback((product: Product) => toggleFavoriteId(product.id), [toggleFavoriteId]);
+
+  /** Favourites and sections are two ways of narrowing the same list, and only
+   *  one is active at a time: picking either leaves the other. */
+  const selectCategory = useCallback((slug: string | null) => {
+    setShowFavorites(false);
+    setActiveCategory(slug);
+  }, []);
+  const selectFavorites = useCallback(() => {
+    setActiveCategory(null);
+    setShowFavorites(true);
+  }, []);
+
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
   const clearCart = useCallback(() => setCart({}), []);
@@ -215,14 +268,21 @@ function PublicCatalog() {
 
         <SearchBar
           query={query}
-          resultCount={total}
+          resultCount={visibleTotal}
           isSearching={isCatalogLoading}
           onQueryChange={setQuery}
         />
         {/* Empty until the list arrives: the "Todo" chip is there from the
             first paint, and the sections appear rather than the built-in list
             flashing and being rewritten under the shopper. */}
-        <CategoryNav categories={areSectionsLoaded ? categories : []} active={activeCategory} onSelect={setActiveCategory} />
+        <CategoryNav
+          categories={areSectionsLoaded ? categories : []}
+          active={activeCategory}
+          onSelect={selectCategory}
+          favoriteCount={favoriteIds.length}
+          isShowingFavorites={showFavorites}
+          onSelectFavorites={selectFavorites}
+        />
 
         {/* Says so plainly instead of quietly serving a saved copy: the prices
             in one of those copies go stale, and a wrong wholesale price is an
@@ -257,16 +317,55 @@ function PublicCatalog() {
           </div>
         )}
 
+        {showFavorites && !hasLoadError && !isCatalogLoading && unavailableFavorites > 0 && visibleProducts.length > 0 && (
+          <p className="mx-auto mb-5 max-w-2xl px-5 text-center text-sm font-bold text-ink/55" role="status">
+            {unavailableFavorites === 1
+              ? "Uno de tus favoritos no está disponible por ahora. Si vuelve al catálogo, lo vas a ver acá."
+              : `${unavailableFavorites} de tus favoritos no están disponibles por ahora. Si vuelven al catálogo, los vas a ver acá.`}
+          </p>
+        )}
+
         {!hasLoadError && (
           <ProductGrid
-            products={products}
+            products={visibleProducts}
             categories={categories}
             quantities={quantities}
             onChangeQuantity={changeQuantity}
+            favoriteIds={favoriteIdSet}
+            onToggleFavorite={toggleFavorite}
+            emptyState={
+              // With something typed in the search box the stock "nothing
+              // matched" message is the right one, so this only steps in for
+              // an empty favourites list.
+              showFavorites && !debouncedQuery.trim() ? (
+                <div className="py-16 text-center">
+                  <p className="text-5xl" aria-hidden="true">
+                    {unavailableFavorites > 0 ? "📦" : "❤️"}
+                  </p>
+                  <p className="font-display mt-4 text-2xl text-ink/70">
+                    {unavailableFavorites > 0
+                      ? "Tus favoritos no están disponibles por ahora"
+                      : "Todavía no guardaste favoritos"}
+                  </p>
+                  <p className="mx-auto mt-2 max-w-sm text-sm text-ink/50">
+                    {unavailableFavorites > 0
+                      ? "Salieron de la última lista de precios. Si vuelven al catálogo, los vas a ver acá."
+                      : "Tocá el corazón de un producto para tenerlo a mano acá. Quedan guardados en este dispositivo."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => selectCategory(null)}
+                    className="mt-6 rounded-full border-2 border-ink bg-yellow px-5 py-3 font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+                  >
+                    Ver todo el catálogo
+                  </button>
+                </div>
+              ) : undefined
+            }
             isLoading={isCatalogLoading}
             isLoadingMore={isLoadingMore}
             hasMore={products.length < total}
-            totalCount={total}
+            totalCount={visibleTotal}
             onLoadMore={loadMore}
           />
         )}

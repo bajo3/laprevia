@@ -4,9 +4,19 @@ type Props = {
   categories: Category[];
   active: string | null;
   onSelect: (slug: string | null) => void;
+  favoriteCount: number;
+  isShowingFavorites: boolean;
+  onSelectFavorites: () => void;
 };
 
-export default function CategoryNav({ categories, active, onSelect }: Props) {
+export default function CategoryNav({
+  categories,
+  active,
+  onSelect,
+  favoriteCount,
+  isShowingFavorites,
+  onSelectFavorites,
+}: Props) {
   return (
     <nav
       id="categorias"
@@ -19,14 +29,31 @@ export default function CategoryNav({ categories, active, onSelect }: Props) {
         <button
           type="button"
           onClick={() => onSelect(null)}
-          aria-pressed={active === null}
+          aria-pressed={active === null && !isShowingFavorites}
           className={`shrink-0 snap-start rounded-full border-[3px] border-ink px-4 py-2 font-display text-base transition sm:px-5 sm:text-lg ${
-            active === null
+            active === null && !isShowingFavorites
               ? "bg-ink text-cream"
               : "bg-cream text-ink hover:-translate-y-0.5"
           }`}
         >
           ✨ Todo
+        </button>
+        {/* Second on the rail, ahead of the sections: on a phone the rail
+            scrolls sideways and only the first two or three chips are on
+            screen, so anywhere further along nobody would find it. */}
+        <button
+          type="button"
+          onClick={onSelectFavorites}
+          aria-pressed={isShowingFavorites}
+          className={`shrink-0 snap-start rounded-full border-[3px] border-ink px-4 py-2 font-display text-base transition hover:-translate-y-0.5 sm:px-5 sm:text-lg ${
+            isShowingFavorites ? "bg-pink text-white" : "bg-white text-ink"
+          }`}
+        >
+          <span aria-hidden="true">❤️ </span>
+          Favoritos
+          {favoriteCount > 0 && (
+            <span className="tabular-nums"> · {favoriteCount.toLocaleString("es-AR")}</span>
+          )}
         </button>
         {categories.map((cat) => (
           <button

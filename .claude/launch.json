@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--", "--port", "5183", "--strictPort"],
       "port": 5183
+    },
+    {
+      "name": "laprevia-api-local",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vercel", "dev", "--listen", "3010", "--yes"],
+      "port": 3010
+    },
+    {
+      "name": "laprevia-dev-api-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5184", "--strictPort", "--mode", "local-api"],
+      "port": 5184
     }
   ]
 }

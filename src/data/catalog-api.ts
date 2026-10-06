@@ -29,6 +29,10 @@ export type CatalogQuery = {
   query?: string;
   category?: string | null;
   photo?: PhotoFilter;
+  /** Only these products. An empty list means "none", not "no filter" — the
+   *  favourites view passes whatever the shopper has marked, and with nothing
+   *  marked it has to come back empty rather than with the whole catalog. */
+  ids?: string[];
   offset?: number;
   limit?: number;
   /** Skips the edge cache. The panel sets it so a page reloaded right after an
@@ -47,11 +51,15 @@ export async function fetchCatalogPage({
   query = "",
   category = null,
   photo = "all",
+  ids,
   offset = 0,
   limit = PAGE_SIZE,
   fresh = false,
 }: CatalogQuery = {}): Promise<CatalogPage> {
+  if (ids && !ids.length) return { products: [], total: 0 };
+
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  for (const id of ids ?? []) params.append("id", id);
   if (query.trim()) params.set("q", query.trim());
   if (category) params.set("category", category);
   if (photo !== "all") params.set("photo", photo);

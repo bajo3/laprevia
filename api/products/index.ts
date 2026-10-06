@@ -17,6 +17,12 @@ export const config = { runtime: "edge" };
  *  (the photo filter) stay uncached so an edit is visible immediately. */
 const PUBLIC_CACHE = "public, s-maxage=60, stale-while-revalidate=86400";
 
+/** How many ids one request may ask for by name. The public catalog keeps a
+ *  shopper's favourites on their device and reads them back with `?id=…&id=…`;
+ *  it caps its own list at 200, and this leaves headroom without letting one
+ *  request carry an unbounded filter. */
+const MAX_IDS = 300;
+
 function clamp(value: unknown, min: number, max: number) {
   const parsed = Number(value);
   return Math.min(Math.max(Number.isFinite(parsed) ? parsed : min, min), max);
@@ -56,6 +62,21 @@ async function listProducts(request: Request) {
   // request for the general drawer has to match both names.
   if (category === FALLBACK_CATEGORY) builder = builder.in("category", [FALLBACK_CATEGORY, "almacen"]);
   else if (category) builder = builder.eq("category", category);
+
+  // A specific set of products, for the shopper's favourites. Repeated `id`
+  // parameters rather than one comma-separated value: ids typed by hand in the
+  // panel can contain anything, a comma included.
+  if (url.searchParams.has("id")) {
+    const ids = url.searchParams
+      .getAll("id")
+      .map((id) => id.trim())
+      .filter(Boolean)
+      .slice(0, MAX_IDS);
+    // Asking for "these ids" with none left must not fall through to "all of
+    // them" — that would answer an empty favourites list with the catalog.
+    if (!ids.length) return json({ total: 0, products: [] });
+    builder = builder.in("id", ids);
+  }
 
   // The dashboard's core workflow is "show me what still needs a photo".
   // Filtering that in Postgres keeps it accurate across the whole catalog
