@@ -5,11 +5,12 @@ import CategoryNav from "./components/CategoryNav";
 import ProductGrid from "./components/ProductGrid";
 import { SearchBar } from "./components/SearchBar";
 import { CartDrawer } from "./components/CartDrawer";
+import { PhotoLightbox } from "./components/PhotoLightbox";
 import InfoTicket from "./components/InfoTicket";
 import Footer from "./components/Footer";
 import { useCategories } from "./data/catalog-config";
 import { fetchCatalogPage, refreshCategories } from "./data/catalog-api";
-import { useFavorites } from "./data/favorites";
+import { MAX_FAVORITES, useFavorites } from "./data/favorites";
 import { WHATSAPP_CHAT_URL } from "./data/site-config";
 import type { Product } from "./data/products";
 
@@ -93,6 +94,14 @@ function PublicCatalog() {
    *  and skip a product. */
   const viewIdsRef = useRef<string[] | undefined>(undefined);
 
+  /** The product whose photo is open large, if any. */
+  const [zoomedProduct, setZoomedProduct] = useState<Product | null>(null);
+  /** Just above the results: where the page goes when the list is replaced. */
+  const resultsTopRef = useRef<HTMLDivElement>(null);
+  /** Set when the results should be brought into view once they have loaded,
+   *  wherever the shopper happens to be on the page. */
+  const scrollToResultsRef = useRef(false);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
@@ -121,7 +130,15 @@ function PublicCatalog() {
     const ids = showFavorites ? favoriteIdsRef.current : undefined;
     viewIdsRef.current = ids;
     try {
-      const page = await fetchCatalogPage({ query: debouncedQuery, category: activeCategory, ids });
+      const page = await fetchCatalogPage({
+        query: debouncedQuery,
+        category: activeCategory,
+        ids,
+        // Favourites come in one piece rather than a page at a time: "agregar
+        // todos al carrito" has to mean all of them, not the first 48, and the
+        // list is capped at MAX_FAVORITES anyway.
+        limit: ids ? MAX_FAVORITES : undefined,
+      });
       if (id !== requestId.current) return;
       setProducts(page.products);
       setTotal(page.total);
@@ -143,6 +160,27 @@ function PublicCatalog() {
   useEffect(() => {
     void loadFirstPage();
   }, [loadFirstPage]);
+
+  /** Brings the top of a freshly loaded list into view.
+   *
+   *  It waits for the list instead of scrolling on the tap. Scrolling first
+   *  and loading second left the browser holding the first card in place while
+   *  the "agregar todos" bar was inserted above it — on a phone, underneath the
+   *  sticky section rail, where nobody would see it.
+   *
+   *  The same thing was already wrong for the section chips: on a phone the
+   *  rail is sticky, so a section can be picked from deep in the list, and a
+   *  short section then left the shopper past its end, looking at the footer.
+   *  Whenever the top of the results is above the screen, a new list starts
+   *  from its beginning. */
+  useEffect(() => {
+    if (isCatalogLoading) return;
+    const anchor = resultsTopRef.current;
+    if (anchor && (scrollToResultsRef.current || anchor.getBoundingClientRect().top < 0)) {
+      anchor.scrollIntoView();
+    }
+    scrollToResultsRef.current = false;
+  }, [isCatalogLoading]);
 
   /** A section can be deleted from the panel while the catalog is open on
    *  someone's phone. Without this the shopper is left filtering by a section
@@ -230,6 +268,23 @@ function PublicCatalog() {
     });
   }, []);
 
+  /** Puts one unit of each product in the cart, skipping what is already
+   *  there. Skipping is what makes the button safe to press twice: a shop that
+   *  already set "12" on something does not get it bumped to 13, and a second
+   *  tap does not double the order. */
+  const addManyToCart = useCallback((items: Product[]) => {
+    setCart((current) => {
+      const next = { ...current };
+      let position = Math.max(Date.now(), ...Object.values(current).map((line) => line.addedAt + 1));
+      for (const product of items) {
+        if (next[product.id]) continue;
+        next[product.id] = { product, quantity: 1, addedAt: position };
+        position += 1;
+      }
+      return next;
+    });
+  }, []);
+
   /** In the favourites view a product stops being listed the moment its heart
    *  is un-marked. The counts follow, so "3 productos" never sits above two
    *  cards. */
@@ -251,6 +306,35 @@ function PublicCatalog() {
     setActiveCategory(null);
     setShowFavorites(true);
   }, []);
+  /** From the header the favourites can be opened from anywhere on the page,
+   *  so the list also has to be brought into view. */
+  const openFavorites = useCallback(() => {
+    // Already on the favourites: nothing will load, so there is nothing to
+    // wait for.
+    if (showFavorites) resultsTopRef.current?.scrollIntoView();
+    else scrollToResultsRef.current = true;
+    selectFavorites();
+  }, [selectFavorites, showFavorites]);
+
+  /** Focus goes back to the photo that opened the large view, so a keyboard
+   *  user lands where they were instead of at the top of the page. The opener
+   *  is noted here, on the click: by the time the dialog's own effects run,
+   *  its close button has already taken the focus. */
+  const zoomOpenerRef = useRef<HTMLElement | null>(null);
+  const openZoom = useCallback((product: Product) => {
+    zoomOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setZoomedProduct(product);
+  }, []);
+  const closeZoom = useCallback(() => {
+    setZoomedProduct(null);
+    zoomOpenerRef.current?.focus();
+    zoomOpenerRef.current = null;
+  }, []);
+
+  const favoritesNotInCart = useMemo(
+    () => (showFavorites ? visibleProducts.filter((product) => !cart[product.id]) : []),
+    [cart, showFavorites, visibleProducts],
+  );
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
@@ -258,7 +342,12 @@ function PublicCatalog() {
 
   return (
     <>
-      <Header cartCount={cartCount} onCartOpen={openCart} />
+      <Header
+        cartCount={cartCount}
+        onCartOpen={openCart}
+        favoriteCount={favoriteIds.length}
+        onFavoritesOpen={openFavorites}
+      />
       <main id="contenido">
         <Hero />
 
@@ -283,6 +372,7 @@ function PublicCatalog() {
           isShowingFavorites={showFavorites}
           onSelectFavorites={selectFavorites}
         />
+        <div ref={resultsTopRef} />
 
         {/* Says so plainly instead of quietly serving a saved copy: the prices
             in one of those copies go stale, and a wrong wholesale price is an
@@ -325,6 +415,43 @@ function PublicCatalog() {
           </p>
         )}
 
+        {/* What turns a list of favourites into next week's order: a kiosk
+            that buys the same things marks them once and fills the cart from
+            here. */}
+        {showFavorites && !hasLoadError && !isCatalogLoading && visibleProducts.length > 0 && (
+          <div className="mx-auto mb-6 flex max-w-6xl flex-col items-center gap-3 px-5 pt-4 sm:flex-row sm:justify-center sm:pt-0">
+            {favoritesNotInCart.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => addManyToCart(favoritesNotInCart)}
+                className="w-full rounded-full border-[3px] border-ink bg-pink px-6 py-3 font-extrabold text-white shadow-[4px_4px_0_var(--color-ink)] transition hover:-translate-y-0.5 sm:w-auto"
+              >
+                <span aria-hidden="true">🛒 </span>
+                {favoritesNotInCart.length === visibleProducts.length
+                  ? favoritesNotInCart.length === 1
+                    ? "Agregar al carrito"
+                    : `Agregar los ${favoritesNotInCart.length} al carrito`
+                  : favoritesNotInCart.length === 1
+                    ? "Agregar el que falta al carrito"
+                    : `Agregar los ${favoritesNotInCart.length} que faltan al carrito`}
+              </button>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-ink/60" role="status">
+                  ✓ {visibleProducts.length === 1 ? "Ya está en el carrito" : "Ya están todos en el carrito"}
+                </p>
+                <button
+                  type="button"
+                  onClick={openCart}
+                  className="rounded-full border-2 border-ink bg-yellow px-5 py-2.5 text-sm font-extrabold shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+                >
+                  Ver carrito
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {!hasLoadError && (
           <ProductGrid
             products={visibleProducts}
@@ -333,6 +460,7 @@ function PublicCatalog() {
             onChangeQuantity={changeQuantity}
             favoriteIds={favoriteIdSet}
             onToggleFavorite={toggleFavorite}
+            onZoom={openZoom}
             emptyState={
               // With something typed in the search box the stock "nothing
               // matched" message is the right one, so this only steps in for
@@ -391,6 +519,13 @@ function PublicCatalog() {
         onClose={closeCart}
         onChangeQuantity={changeQuantity}
         onClear={clearCart}
+      />
+
+      <PhotoLightbox
+        product={zoomedProduct}
+        quantity={zoomedProduct ? (quantities[zoomedProduct.id] ?? 0) : 0}
+        onChangeQuantity={changeQuantity}
+        onClose={closeZoom}
       />
     </>
   );

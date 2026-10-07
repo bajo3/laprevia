@@ -21,6 +21,7 @@ type ProductCardProps = {
   onChangeQuantity: (product: Product, delta: number) => void;
   isFavorite: boolean;
   onToggleFavorite: (product: Product) => void;
+  onZoom: (product: Product) => void;
 };
 
 export default function ProductCard({
@@ -31,6 +32,7 @@ export default function ProductCard({
   onChangeQuantity,
   isFavorite,
   onToggleFavorite,
+  onZoom,
 }: ProductCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [product.image]);
@@ -65,15 +67,26 @@ export default function ProductCard({
         {/* The section wins over the emoji stored on the product: the
             product was normalized before the section list finished loading. */}
         {!imageSrc && <span aria-hidden="true">{category?.emoji ?? product.emoji}</span>}
+        {/* The photo is the way in to its own large version. The button
+            carries the name, so the image inside stays silent rather than
+            being announced twice. The focus ring is drawn inwards: the box
+            clips its overflow, and a ring outside the edge would be cut off. */}
         {imageSrc && (
-          <img
-            src={imageSrc}
-            alt={product.name}
-            className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
-            loading="lazy"
-            decoding="async"
-            onError={() => setImageFailed(true)}
-          />
+          <button
+            type="button"
+            onClick={() => onZoom(product)}
+            aria-label={`Ver en grande la foto de ${product.name}`}
+            className="absolute inset-0 cursor-zoom-in focus-visible:-outline-offset-4!"
+          >
+            <img
+              src={imageSrc}
+              alt=""
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+              loading="lazy"
+              decoding="async"
+              onError={() => setImageFailed(true)}
+            />
+          </button>
         )}
         {!imageSrc && (
           <span className="absolute bottom-2 left-2 rounded-full border border-white/70 bg-ink/70 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-white backdrop-blur-sm">

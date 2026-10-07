@@ -3,9 +3,11 @@ import { WHATSAPP_CATALOG_URL } from "../data/site-config";
 type HeaderProps = {
   cartCount: number;
   onCartOpen: () => void;
+  favoriteCount: number;
+  onFavoritesOpen: () => void;
 };
 
-export default function Header({ cartCount, onCartOpen }: HeaderProps) {
+export default function Header({ cartCount, onCartOpen, favoriteCount, onFavoritesOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b-4 border-ink bg-cream/90 backdrop-blur">
       {/* Fixed 60px + 4px border = 64px on mobile, so CategoryNav's sticky
@@ -24,7 +26,10 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
           <a href="#contacto" className="hover:text-pink">Contacto</a>
         </nav>
 
-        <div className="flex items-center gap-2">
+        {/* gap-3, not gap-2: each button's count badge hangs 8px past its
+            right edge, which was exactly the old gap — the favourites badge
+            sat touching the cart button. */}
+        <div className="flex items-center gap-3">
           <a
             href={WHATSAPP_CATALOG_URL}
             target="_blank"
@@ -33,6 +38,37 @@ export default function Header({ cartCount, onCartOpen }: HeaderProps) {
           >
             WhatsApp
           </a>
+          {/* The chip on the section rail is the other way in, but on a
+              desktop that rail is not sticky: three screens down the catalog
+              there was no way back to the favourites short of scrolling up.
+              The header is always on screen. */}
+          <button
+            type="button"
+            onClick={onFavoritesOpen}
+            className="relative flex h-11 w-11 items-center justify-center rounded-full border-2 border-ink bg-white text-ink shadow-[3px_3px_0_var(--color-ink)] transition hover:-translate-y-0.5"
+            aria-label={
+              favoriteCount === 0
+                ? "Ver favoritos, todavía no guardaste ninguno"
+                : `Ver favoritos, ${favoriteCount} ${favoriteCount === 1 ? "guardado" : "guardados"}`
+            }
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-5 w-5 ${favoriteCount > 0 ? "text-pink" : ""}`}
+              fill={favoriteCount > 0 ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 20.5s-7.5-4.6-7.5-10.1A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8c0 5.5-7.5 10.1-7.5 10.1Z" />
+            </svg>
+            {favoriteCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-ink bg-ink px-1 text-xs font-extrabold text-cream tabular-nums">
+                {favoriteCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={onCartOpen}

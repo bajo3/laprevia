@@ -22,6 +22,7 @@ type ProductGridProps = {
   onChangeQuantity: (product: Product, delta: number) => void;
   favoriteIds: ReadonlySet<string>;
   onToggleFavorite: (product: Product) => void;
+  onZoom: (product: Product) => void;
   /** Replaces the "nothing matched your search" message when the list is
    *  empty for a different reason, such as no favourites marked yet. */
   emptyState?: ReactNode;
@@ -54,6 +55,7 @@ export default function ProductGrid({
   onChangeQuantity,
   favoriteIds,
   onToggleFavorite,
+  onZoom,
   emptyState,
   isLoading = false,
   isLoadingMore = false,
@@ -106,6 +108,7 @@ export default function ProductGrid({
               onChangeQuantity={onChangeQuantity}
               isFavorite={favoriteIds.has(p.id)}
               onToggleFavorite={onToggleFavorite}
+              onZoom={onZoom}
             />
           ))}
         </div>
