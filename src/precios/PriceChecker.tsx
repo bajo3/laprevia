@@ -13,6 +13,48 @@ const currency = new Intl.NumberFormat("es-AR", {
  *  Enter, which searches at once. */
 const TYPING_DELAY = 350;
 const MAX_RESULTS = 24;
+/** With nobody touching it for this long, the screen goes back to the start:
+ *  the next customer should find the invitation, not someone else's product. */
+const IDLE_RESET = 30_000;
+
+/** Bar widths of the drawing on the start screen. Decorative, not a real code. */
+const BARS = [3, 1, 2, 1, 1, 3, 2, 1, 3, 1, 1, 2, 3, 1, 2, 1, 1, 3, 1, 2, 2, 1, 3, 1, 1, 2, 1, 3];
+
+function StartScreen() {
+  let x = 0;
+  return (
+    <div className="rounded-3xl border-[3px] border-ink bg-white px-6 py-10 text-center shadow-[6px_6px_0_var(--color-ink)] sm:py-14">
+      <div className="relative mx-auto w-fit rounded-2xl border-[3px] border-ink bg-yellow px-6 py-5">
+        <svg viewBox="0 0 150 70" className="h-24 w-52 text-ink sm:h-32 sm:w-72" aria-hidden="true">
+          {BARS.map((width, index) => {
+            const bar = index % 2 === 0 ? <rect key={index} x={x} y="0" width={width * 3} height="70" fill="currentColor" /> : null;
+            x += width * 3;
+            return bar;
+          })}
+        </svg>
+        <span aria-hidden="true" className="scan-line absolute inset-x-3 top-1/2 h-1 rounded-full bg-pink" />
+      </div>
+
+      <h2 className="mt-8 font-display text-4xl leading-tight sm:text-6xl">
+        ¿Cuánto sale? <span className="text-pink">Consultalo acá</span>
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-lg font-bold text-ink/60 sm:text-xl">
+        Acercá el código de barras del producto al lector y el precio aparece al instante.
+      </p>
+
+      <ol className="mx-auto mt-8 grid max-w-2xl gap-3 text-left sm:grid-cols-2">
+        <li className="flex items-center gap-3 rounded-2xl border-2 border-ink bg-cream p-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-teal font-display text-xl text-white">1</span>
+          <span className="font-bold leading-snug">Pasá el producto por el lector</span>
+        </li>
+        <li className="flex items-center gap-3 rounded-2xl border-2 border-ink bg-cream p-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-violet-dark font-display text-xl text-white">2</span>
+          <span className="font-bold leading-snug">¿No tiene código? Escribí el nombre arriba</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
 
 type Result =
   | { status: "idle" }
@@ -117,6 +159,32 @@ export default function PriceChecker() {
     return () => document.removeEventListener("keydown", sendKeysToInput);
   }, []);
 
+  // Back to the start after half a minute with nobody at the screen. Typing,
+  // scanning and a new result all restart the count through these values; a
+  // tap or a scroll through the list does it through `activity`.
+  const [activity, setActivity] = useState(0);
+  useEffect(() => {
+    const touched = () => setActivity((count) => count + 1);
+    document.addEventListener("pointerdown", touched);
+    document.addEventListener("scroll", touched, { passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", touched);
+      document.removeEventListener("scroll", touched);
+    };
+  }, []);
+  useEffect(() => {
+    if (!term && result.status === "idle") return;
+    const timer = window.setTimeout(() => {
+      latestSearch.current += 1;
+      searchedTerm.current = "";
+      setTerm("");
+      setResult({ status: "idle" });
+      window.scrollTo({ top: 0 });
+      inputRef.current?.focus();
+    }, IDLE_RESET);
+    return () => window.clearTimeout(timer);
+  }, [term, result, activity]);
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     search(term);
@@ -181,11 +249,7 @@ export default function PriceChecker() {
         </form>
 
         <div className="mt-8" aria-live="polite">
-          {result.status === "idle" && (
-            <p className="py-16 text-center text-lg font-bold text-ink/45">
-              Pasá el producto por el lector para ver el precio.
-            </p>
-          )}
+          {result.status === "idle" && <StartScreen />}
 
           {result.status === "loading" && (
             <p className="py-16 text-center font-display text-3xl text-ink/50">Buscando…</p>

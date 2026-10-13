@@ -132,3 +132,19 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* The red line sweeping over the barcode on the price checker's start screen. */
+@keyframes scan-sweep {
+  0%, 100% { transform: translateY(-2.5rem); }
+  50% { transform: translateY(2.5rem); }
+}
+
+.scan-line {
+  box-shadow: 0 0 12px var(--color-pink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scan-line {
+    animation: scan-sweep 2.4s ease-in-out infinite;
+  }
+}
