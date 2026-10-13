@@ -25,13 +25,17 @@ type Result =
  *
  *  Both go out together: the code lookup is an index hit and almost always
  *  what a scan wants, and waiting for it to miss before asking by name would
- *  make every typed word pay two round trips in a row. */
+ *  make every typed word pay two round trips in a row. A scan does not wait
+ *  for the name search, though: that one reads the whole table and can take
+ *  seconds, and the price is already here. */
 async function lookUp(term: string): Promise<{ products: Product[]; total: number }> {
   const isOneWord = !/\s/.test(term);
-  const [byCode, byName] = await Promise.all([
-    isOneWord ? fetchCatalogPage({ code: term, limit: MAX_RESULTS }) : null,
-    fetchCatalogPage({ query: term, limit: MAX_RESULTS }),
-  ]);
+  const byName = fetchCatalogPage({ query: term, limit: MAX_RESULTS });
+  // Handled here so that leaving early on a code match cannot turn a failed
+  // name search into an unhandled rejection; the `return byName` below still
+  // rejects for whoever is actually waiting on it.
+  byName.catch(() => {});
+  const byCode = isOneWord ? await fetchCatalogPage({ code: term, limit: MAX_RESULTS }).catch(() => null) : null;
   // Kept only if the code really is this one: an answer that ignored the
   // filter would otherwise pass off the top of the catalog as a match.
   const wanted = term.replace(/^0+/, "").toLowerCase();
