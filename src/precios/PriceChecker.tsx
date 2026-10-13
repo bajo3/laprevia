@@ -316,6 +316,26 @@ export default function PriceChecker() {
           )}
         </div>
       </main>
+
+      {/* The same half minute the reset counts, drawn. The key restarts the
+          animation at every moment the timer above restarts, so the bar and
+          the reset cannot drift apart. */}
+      {(term || result.status !== "idle") && (
+        <footer className="sticky bottom-0 border-t-[3px] border-ink bg-cream px-5 pb-3 pt-2">
+          <div className="mx-auto max-w-4xl">
+            <p className="mb-1.5 text-center text-xs font-extrabold uppercase tracking-wider text-ink/50">
+              Vuelve al inicio en unos segundos
+            </p>
+            <div className="h-3 overflow-hidden rounded-full border-2 border-ink bg-white">
+              <div
+                key={`${activity}|${term}|${result.status}`}
+                className="idle-countdown h-full bg-pink"
+                style={{ animationDuration: `${IDLE_RESET}ms` }}
+              />
+            </div>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

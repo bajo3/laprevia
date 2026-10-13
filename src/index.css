@@ -148,3 +148,15 @@ body {
     animation: scan-sweep 2.4s ease-in-out infinite;
   }
 }
+
+/* The bar that empties while the price checker counts down to its start
+   screen. Not behind prefers-reduced-motion: it is the only thing telling the
+   customer the screen is about to change. */
+@keyframes idle-countdown {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+.idle-countdown {
+  animation: idle-countdown linear forwards;
+}
