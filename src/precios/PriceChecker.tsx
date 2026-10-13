@@ -96,8 +96,12 @@ export default function PriceChecker() {
 
   // Typing a name searches on its own after a pause.
   useEffect(() => {
-    if (term.trim().length < 2 || term.trim() === searchedTerm.current) return;
-    const timer = window.setTimeout(() => search(term), TYPING_DELAY);
+    if (term.trim().length < 2) return;
+    // Checked when the timer fires, not when it is set: the Enter that makes
+    // this search redundant arrives after the last key started the timer.
+    const timer = window.setTimeout(() => {
+      if (term.trim() !== searchedTerm.current) search(term);
+    }, TYPING_DELAY);
     return () => window.clearTimeout(timer);
   }, [term, search]);
 
