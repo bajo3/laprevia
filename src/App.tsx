@@ -15,6 +15,7 @@ import { WHATSAPP_CHAT_URL } from "./data/site-config";
 import type { Product } from "./data/products";
 
 const AdminDashboard = lazy(() => import("./admin/AdminDashboard"));
+const PriceChecker = lazy(() => import("./precios/PriceChecker"));
 
 const currency = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -537,7 +538,18 @@ function isAdminRoute(pathname: string) {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
+function isPriceCheckerRoute(pathname: string) {
+  return pathname === "/precios" || pathname.startsWith("/precios/");
+}
+
 function App() {
+  if (isPriceCheckerRoute(window.location.pathname)) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-cream p-6 text-center"><p className="font-display text-3xl">Cargando…</p></div>}>
+        <PriceChecker />
+      </Suspense>
+    );
+  }
   return isAdminRoute(window.location.pathname) ? (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-cream p-6 text-center"><p className="font-display text-3xl">Cargando panel…</p></div>}>
       <AdminDashboard />

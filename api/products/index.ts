@@ -23,6 +23,18 @@ const PUBLIC_CACHE = "public, s-maxage=60, stale-while-revalidate=86400";
  *  request carry an unbounded filter. */
 const MAX_IDS = 300;
 
+/** Every spelling a scanner may give the same barcode.
+ *
+ *  A UPC-A code is twelve digits and the same code read as EAN-13 carries a
+ *  zero in front; which one a reader sends depends on how it is configured,
+ *  and which one the price list stored depends on who typed it. */
+function codeVariants(code: string): string[] {
+  const variants = [code];
+  if (/^\d{12}$/.test(code)) variants.push(`0${code}`);
+  if (/^0\d{12}$/.test(code)) variants.push(code.slice(1));
+  return variants;
+}
+
 function clamp(value: unknown, min: number, max: number) {
   const parsed = Number(value);
   return Math.min(Math.max(Number.isFinite(parsed) ? parsed : min, min), max);
@@ -62,6 +74,11 @@ async function listProducts(request: Request) {
   // request for the general drawer has to match both names.
   if (category === FALLBACK_CATEGORY) builder = builder.in("category", [FALLBACK_CATEGORY, "almacen"]);
   else if (category) builder = builder.eq("category", category);
+
+  // The price checker: the exact code, not a substring. Scanning "7645" has to
+  // return that article and not every barcode with those four digits in it.
+  const code = (url.searchParams.get("code") ?? "").trim();
+  if (code) builder = builder.in("code", codeVariants(code));
 
   // A specific set of products, for the shopper's favourites. Repeated `id`
   // parameters rather than one comma-separated value: ids typed by hand in the

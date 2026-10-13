@@ -27,6 +27,8 @@ export type PhotoFilter = "all" | "missing" | "ready";
 
 export type CatalogQuery = {
   query?: string;
+  /** The exact code, as a scanner reads it off the package. */
+  code?: string;
   category?: string | null;
   photo?: PhotoFilter;
   /** Only these products. An empty list means "none", not "no filter" — the
@@ -49,6 +51,7 @@ export type CatalogPage = {
  *  catalog is searchable even though only a page is ever sent to the browser. */
 export async function fetchCatalogPage({
   query = "",
+  code = "",
   category = null,
   photo = "all",
   ids,
@@ -61,6 +64,7 @@ export async function fetchCatalogPage({
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   for (const id of ids ?? []) params.append("id", id);
   if (query.trim()) params.set("q", query.trim());
+  if (code.trim()) params.set("code", code.trim());
   if (category) params.set("category", category);
   if (photo !== "all") params.set("photo", photo);
   if (fresh) params.set("fresh", "1");
